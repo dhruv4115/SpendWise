@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Node 20)
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The backend project does not exist until P01. Probe for it so the job is
+      # green on an empty repo without ever masking a real failure later.
+      - name: Detect backend project
+        id: probe
+        run: |
+          set -euo pipefail
+          if [ -f backend/package.json ]; then
+            echo "project=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "project=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f backend/package-lock.json ]; then
+            echo "lockfile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "lockfile=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: ${{ steps.probe.outputs.lockfile == 'true' && 'npm' || '' }}
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.probe.outputs.project }}" != "true" ]; then
+            echo "No backend/package.json yet (scaffold phase) — nothing to install."
+            exit 0
+          fi
+          cd backend
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "::warning::backend/package-lock.json missing; falling back to npm install."
+            npm install
+          fi
+
+      - name: Test
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.probe.outputs.project }}" != "true" ]; then
+            echo "No backend/package.json yet (scaffold phase) — placeholder test passes."
+            exit 0
+          fi
+          cd backend
+          npm test
+
+  frontend:
+    name: Frontend (Flutter stable)
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The Flutter project does not exist until P02 — same probe-then-skip shape
+      # as the backend job.
+      - name: Detect Flutter project
+        id: probe
+        run: |
+          set -euo pipefail
+          if [ -f frontend/pubspec.yaml ]; then
+            echo "project=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "project=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -d frontend/test ] || [ -d frontend/integration_test ]; then
+            echo "tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            frontend/.dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('frontend/pubspec.lock', 'frontend/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Resolve dependencies
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.probe.outputs.project }}" != "true" ]; then
+            echo "No frontend/pubspec.yaml yet (scaffold phase) — nothing to resolve."
+            exit 0
+          fi
+          cd frontend
+          flutter pub get
+
+      - name: Check formatting
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.probe.outputs.project }}" != "true" ]; then
+            echo "No frontend/pubspec.yaml yet (scaffold phase) — nothing to format-check."
+            exit 0
+          fi
+          cd frontend
+          dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.probe.outputs.project }}" != "true" ]; then
+            echo "No frontend/pubspec.yaml yet (scaffold phase) — nothing to analyze."
+            exit 0
+          fi
+          cd frontend
+          flutter analyze
+
+      - name: Test
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.probe.outputs.project }}" != "true" ] || [ "${{ steps.probe.outputs.tests }}" != "true" ]; then
+            echo "No Flutter tests yet (scaffold phase) — placeholder test passes."
+            exit 0
+          fi
+          cd frontend
+          flutter test

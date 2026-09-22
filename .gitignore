@@ -1,0 +1,107 @@
+# ---------------------------------------------------------------------------
+# SpendWise — monorepo ignore rules
+# ---------------------------------------------------------------------------
+
+# --- Secrets / environment -------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+*.keystore
+key.properties
+
+# --- Dart / Flutter --------------------------------------------------------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+generated_plugin_registrant.dart
+**/doc/api/
+*.dill
+*.lock.bak
+
+# Flutter platform build output
+**/android/.gradle/
+**/android/captures/
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/local.properties
+**/android/key.properties
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework/
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Podfile.lock
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+**/macos/Podfile.lock
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/web/.dart_tool/
+
+# Signed / packaged app artifacts
+*.apk
+*.aab
+*.ipa
+*.app
+*.dSYM.zip
+*.symbols
+
+# --- Node ------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.node_repl_history
+*.tgz
+dist/
+.eslintcache
+
+# --- Test / coverage -------------------------------------------------------
+coverage/
+lcov.info
+test-results/
+junit.xml
+.nyc_output/
+**/failures/
+
+# --- IDE / editor ----------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# --- OS --------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Local working notes (not part of the deliverable) ---------------------
+docs/new.md
