@@ -84,46 +84,87 @@ curl -s -X POST localhost:3000/__chaos -H 'content-type: application/json' \
 
 ### Frontend
 
+Requires Flutter 3.24+ / Dart 3.5+ on the stable channel, and an SDK built for
+your CPU — on Apple Silicon use the `arm64` build, not the Intel one.
+
 ```bash
 cd frontend
-# TODO(P02): flutter pub get
-# TODO(P02): flutter run --dart-define=API_BASE_URL=http://localhost:3000
-# TODO(P02): flutter test
+flutter pub get
+./scripts/run_dev.sh          # flutter run with the dev defines already set
+flutter test                  # unit and widget tests
 ```
+
+Start the backend first; the app talks to it over the base URL below.
 
 ### Checks run before every commit
 
 ```bash
 cd frontend
-# TODO(P02): dart format .
-# TODO(P02): flutter analyze
+dart format .
+flutter analyze
+flutter test
 ```
+
+CI runs the same three against every pull request, with
+`dart format --output=none --set-exit-if-changed .`
 
 ## Environments
 
-The app never hardcodes a base URL. `core/network/api_config.dart` reads it from the
-compile-time environment:
+The app never hardcodes a base URL. `lib/core/network/api_config.dart` is the only
+file that reads the compile-time environment, and no screen may read it directly:
 
 ```dart
-const String.fromEnvironment('API_BASE_URL')
+class ApiConfig {
+  static const baseUrl = String.fromEnvironment('API_BASE_URL',
+      defaultValue: 'http://10.0.2.2:3000');
+  static const env = String.fromEnvironment('APP_ENV', defaultValue: 'dev');
+}
 ```
 
-Supply it with `--dart-define` on every `run`, `build` and `test` invocation:
+| Define | Default | Purpose |
+| --- | --- | --- |
+| `API_BASE_URL` | `http://10.0.2.2:3000` | Root of the bank API, no trailing slash |
+| `APP_ENV` | `dev` | `dev`, `staging` or `prod`; drives logging and banners |
 
-| Environment | Command |
-| --- | --- |
-| Local (desktop / iOS simulator) | `flutter run --dart-define=API_BASE_URL=http://localhost:3000` |
-| Local (Android emulator) | `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000` |
-| Local (physical device on same LAN) | `flutter run --dart-define=API_BASE_URL=http://<your-lan-ip>:3000` |
-| Staging build | `flutter build apk --dart-define=API_BASE_URL=https://staging.example.invalid` |
+Both are baked in at compile time, so they must be passed on every `run`, `build`
+and `test` invocation that needs a non-default value.
+
+**dev** — against the local mock API:
+
+```bash
+./scripts/run_dev.sh
+# equivalent to:
+flutter run \
+  --dart-define=API_BASE_URL=http://10.0.2.2:3000 \
+  --dart-define=APP_ENV=dev
+```
+
+**staging**:
+
+```bash
+flutter build apk \
+  --dart-define=API_BASE_URL=https://staging.spendwise.invalid \
+  --dart-define=APP_ENV=staging
+```
+
+**prod**:
+
+```bash
+flutter build apk --release \
+  --dart-define=API_BASE_URL=https://api.spendwise.invalid \
+  --dart-define=APP_ENV=prod
+```
 
 Notes:
 
 - `10.0.2.2` is the Android emulator's alias for the host machine's `localhost`.
-- Tests that exercise the network use a hand-written fake Dio adapter and do not need
-  a real base URL, but the define must still be parseable.
-- Multiple defines can be grouped in a `--dart-define-from-file=env/local.json` file
-  if the list grows.
+  On an iOS simulator or desktop use `http://localhost:3000`; on a physical device
+  use the host's LAN address. `scripts/run_dev.sh` honours an `API_BASE_URL`
+  environment variable so you can override it without editing the script.
+- Tests that exercise the network use a hand-written fake Dio adapter and never
+  open a socket, so `flutter test` works with the defaults.
+- Once the list of defines grows, group them into
+  `--dart-define-from-file=env/staging.json` instead of repeating flags.
 
 ## Architecture
 
