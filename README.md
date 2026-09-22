@@ -33,10 +33,54 @@ Tests mirror the app structure under `frontend/test/{unit,widget,helpers}` and
 
 ```bash
 cd backend
-# TODO(P01): npm install
-# TODO(P01): npm run dev       # starts the mock API on http://localhost:3000
-# TODO(P01): npm test
+npm install
+npm run dev       # http://localhost:3000, restarts on save (node --watch)
+npm start         # same server, no watcher
+npm test          # node:test + supertest, no server needs to be running
+PORT=4000 npm start
 ```
+
+Sign in with **any** syntactically valid email and the password `password123`.
+Every other route needs `Authorization: Bearer <token>`.
+
+The dataset is generated from a seeded PRNG (seed `20260922`), so every boot
+produces the same 8,700 transactions across six months ending with the current
+one: ~900 this month, ~1,100 last month, 5,200 two months back (the stress
+month), ~800, then an empty month, then ~700. About 3% are refunds — positive
+`amountPaise` against the same category. Nothing is persisted; restarting the
+server discards recategorisations, budgets and tokens.
+
+Two contract details worth knowing before wiring the client:
+
+- Every `POST`, `PUT` and `PATCH` requires an `Idempotency-Key` header
+  (`400 IDEMPOTENCY_KEY_REQUIRED` without one). Replaying a key with the same
+  body returns the stored response plus `Idempotency-Replayed: true`; replaying
+  it with a different body is `409 IDEMPOTENCY_CONFLICT`. `POST /auth/login`
+  accepts a key but does not demand one.
+- `minPaise` / `maxPaise` filter on the **magnitude** of `amountPaise`, so one
+  range matches both a ₹450 spend and a ₹450 refund. `month`, `from` and `to`
+  are evaluated in UTC, which is also what the wire format uses.
+
+#### Chaos endpoint
+
+`/__chaos` makes the API misbehave on demand, so the client's loading, error and
+retry states can be exercised without editing code. It needs no token and never
+breaks itself or `/auth/login`.
+
+```bash
+curl -s localhost:3000/__chaos                                     # read current mode
+curl -s -X POST localhost:3000/__chaos -H 'content-type: application/json' \
+  -d '{"mode":"slow","latencyMs":2500}'                            # every response crawls
+curl -s -X POST localhost:3000/__chaos -H 'content-type: application/json' \
+  -d '{"mode":"error","failRate":0.5}'                             # half the calls 503
+curl -s -X POST localhost:3000/__chaos -H 'content-type: application/json' \
+  -d '{"mode":"offline"}'                                          # connection dropped
+curl -s -X POST localhost:3000/__chaos -H 'content-type: application/json' \
+  -d '{"mode":"off","latencyMs":0,"failRate":0}'                   # back to normal
+```
+
+`mode` is one of `off`, `slow`, `error`, `offline`; `latencyMs` is 0–30000 and
+`failRate` is 0–1.
 
 ### Frontend
 

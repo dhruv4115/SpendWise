@@ -1,0 +1,22 @@
+{
+  "name": "spendwise-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deterministic in-memory mock API for the SpendWise Flutter client.",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  }
+}
