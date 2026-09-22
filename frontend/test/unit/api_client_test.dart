@@ -3,43 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:spendwise/core/network/api_client.dart';
 import 'package:spendwise/core/network/idempotency.dart';
 import 'package:spendwise/core/security/secure_session_store.dart';
+import 'package:spendwise/features/auth/domain/session.dart';
+import 'package:spendwise/features/auth/state/session_provider.dart';
 
 import '../helpers/container.dart';
 import '../helpers/fake_api.dart';
+import '../helpers/fake_session_store.dart';
 
-const Session _session = Session(
-  token: 'tok_abcdef0123456789',
-  userId: 'usr_123456789abc',
-  userName: 'Asha Rao',
-  email: 'asha@example.com',
-);
-
-/// In-memory stand-in for the keystore, which does not exist in a unit test.
-class FakeSessionStore implements SessionStore {
-  FakeSessionStore({Session? session}) : _session = session;
-
-  Session? _session;
-  int clearCount = 0;
-  int writeCount = 0;
-
-  @override
-  Future<Session?> read() async => _session;
-
-  @override
-  Future<String?> readToken() async => _session?.token;
-
-  @override
-  Future<void> write(Session session) async {
-    writeCount += 1;
-    _session = session;
-  }
-
-  @override
-  Future<void> clear() async {
-    clearCount += 1;
-    _session = null;
-  }
-}
+const Session _session = testSession;
 
 Dio clientFor(
   FakeApi fake, {
@@ -242,7 +213,8 @@ void main() {
         overrides: [sessionStoreProvider.overrideWithValue(store)],
       );
       readAndKeepAlive(container, sessionProvider);
-      expect(await container.read(sessionProvider.future), _session);
+      await container.read(sessionProvider.notifier).restore();
+      expect(container.read(sessionProvider).session, _session);
 
       final fake = FakeApi()
         ..respondError(
@@ -260,7 +232,7 @@ void main() {
       );
 
       expect(store.clearCount, 1);
-      expect(container.read(sessionProvider).value, isNull);
+      expect(container.read(sessionProvider), const SessionSignedOut());
     });
   });
 

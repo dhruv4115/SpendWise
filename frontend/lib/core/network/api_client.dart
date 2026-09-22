@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/auth/state/session_provider.dart';
 import '../security/secure_session_store.dart';
 import 'api_config.dart';
 import 'error_mapper.dart';
@@ -85,6 +86,10 @@ class LoggingInterceptor extends Interceptor {
 class UnauthorisedInterceptor extends Interceptor {
   UnauthorisedInterceptor(this._onUnauthorised);
 
+  /// Sign-in is the one endpoint where a 401 means "wrong password" rather
+  /// than "your session ended", so it is exempt.
+  static const String _signInPath = '/auth/login';
+
   final Future<void> Function() _onUnauthorised;
 
   @override
@@ -92,7 +97,8 @@ class UnauthorisedInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (err.response?.statusCode == 401) {
+    final isSignIn = err.requestOptions.path.endsWith(_signInPath);
+    if (err.response?.statusCode == 401 && !isSignIn) {
       await _onUnauthorised();
     }
     handler.next(err);
@@ -126,12 +132,24 @@ Dio buildApiClient({
   return dio;
 }
 
+/// The transport underneath the client. Null means "use a real socket".
+///
+/// The seam exists so a test can exercise the production [dioProvider] — its
+/// interceptors, its session store, its 401 handling — against a hand-written
+/// adapter, instead of assembling a parallel client that could drift from it.
+final Provider<HttpClientAdapter?> httpClientAdapterProvider =
+    Provider<HttpClientAdapter?>((ref) => null);
+
 /// The app's single HTTP client. Repositories depend on this; widgets never do.
 final Provider<Dio> dioProvider = Provider<Dio>((ref) {
   final dio = buildApiClient(
     store: ref.watch(sessionStoreProvider),
     onUnauthorised: () => ref.read(sessionProvider.notifier).revoke(),
   );
+
+  final adapter = ref.watch(httpClientAdapterProvider);
+  if (adapter != null) dio.httpClientAdapter = adapter;
+
   ref.onDispose(dio.close);
   return dio;
 });

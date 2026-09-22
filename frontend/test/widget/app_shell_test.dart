@@ -1,35 +1,46 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:spendwise/app/app.dart';
+import 'package:spendwise/app/routes.dart';
 import 'package:spendwise/app/theme.dart';
 import 'package:spendwise/core/widgets/empty_view.dart';
 import 'package:spendwise/core/widgets/skeleton.dart';
 
+import '../helpers/fake_api.dart';
+import '../helpers/fake_session_store.dart';
+import '../helpers/test_app.dart';
+
 void main() {
   group('SpendWiseApp', () {
-    testWidgets('boots and shows the resolved build configuration', (
+    testWidgets('boots to sign-in when there is no stored session', (
       tester,
     ) async {
-      await tester.pumpWidget(const ProviderScope(child: SpendWiseApp()));
+      final harness = routedApp(FakeApi());
+
+      await tester.pumpWidget(harness.app);
       await tester.pumpAndSettle();
 
-      expect(find.text('dev'), findsOneWidget);
-      expect(find.text('http://10.0.2.2:3000'), findsOneWidget);
+      expect(harness.location, Routes.loginPath);
+      expect(find.text('Sign in'), findsOneWidget);
     });
 
-    testWidgets('pairs every risk colour with an icon and a word', (
+    testWidgets('boots into the shell when a session is remembered', (
       tester,
     ) async {
-      await tester.pumpWidget(const ProviderScope(child: SpendWiseApp()));
+      final harness = routedApp(
+        FakeApi(),
+        store: FakeSessionStore(session: testSession),
+      );
+
+      await tester.pumpWidget(harness.app);
       await tester.pumpAndSettle();
 
-      expect(find.text('On track'), findsOneWidget);
-      expect(find.text('Close to limit'), findsOneWidget);
-      expect(find.text('Over budget'), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
-      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      expect(harness.location, Routes.overviewPath);
+      // Four tabs, each labelled: the icon is never the only signal.
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Overview'), findsWidgets);
+      expect(find.text('Spending'), findsOneWidget);
+      expect(find.text('Budgets'), findsOneWidget);
+      expect(find.text('Merchants'), findsOneWidget);
     });
 
     testWidgets('does not overflow at textScaler 2.0 on a narrow screen', (
@@ -39,10 +50,16 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
+      final harness = routedApp(
+        FakeApi(),
+        store: FakeSessionStore(session: testSession),
+      );
+
       await tester.pumpWidget(
-        const MediaQuery(
-          data: MediaQueryData(textScaler: TextScaler.linear(2)),
-          child: ProviderScope(child: SpendWiseApp()),
+        MediaQuery(
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(textScaler: const TextScaler.linear(2)),
+          child: harness.app,
         ),
       );
       await tester.pumpAndSettle();

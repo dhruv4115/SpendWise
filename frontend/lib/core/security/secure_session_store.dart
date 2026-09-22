@@ -1,54 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// The signed-in customer and their bearer token.
-///
-/// [toString] deliberately omits the token and the email: this object ends up
-/// in error reports and provider dumps.
-@immutable
-class Session {
-  const Session({
-    required this.token,
-    required this.userId,
-    required this.userName,
-    required this.email,
-  });
-
-  final String token;
-  final String userId;
-  final String userName;
-  final String email;
-
-  Session copyWith({
-    String? token,
-    String? userId,
-    String? userName,
-    String? email,
-  }) {
-    return Session(
-      token: token ?? this.token,
-      userId: userId ?? this.userId,
-      userName: userName ?? this.userName,
-      email: email ?? this.email,
-    );
-  }
-
-  @override
-  String toString() => 'Session(userName: $userName)';
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Session &&
-          other.token == token &&
-          other.userId == userId &&
-          other.userName == userName &&
-          other.email == email;
-
-  @override
-  int get hashCode => Object.hash(token, userId, userName, email);
-}
+import '../../features/auth/domain/session.dart';
 
 /// Storage for the session. An interface so tests can substitute an in-memory
 /// fake — the platform keystore is not available in a unit test.
@@ -88,7 +41,7 @@ class SecureSessionStore implements SessionStore {
   static const String _namespace = 'spendwise';
   static const String _tokenKey = 'session.token';
   static const String _userIdKey = 'session.userId';
-  static const String _userNameKey = 'session.userName';
+  static const String _nameKey = 'session.name';
   static const String _emailKey = 'session.email';
 
   final FlutterSecureStorage _storage;
@@ -107,9 +60,11 @@ class SecureSessionStore implements SessionStore {
 
     final session = Session(
       token: token,
-      userId: await _storage.read(key: _userIdKey) ?? '',
-      userName: await _storage.read(key: _userNameKey) ?? '',
-      email: await _storage.read(key: _emailKey) ?? '',
+      user: AuthUser(
+        id: await _storage.read(key: _userIdKey) ?? '',
+        name: await _storage.read(key: _nameKey) ?? '',
+        email: await _storage.read(key: _emailKey) ?? '',
+      ),
     );
     _cached = session;
     return session;
@@ -123,7 +78,7 @@ class SecureSessionStore implements SessionStore {
     _cached = session;
     await _storage.write(key: _tokenKey, value: session.token);
     await _storage.write(key: _userIdKey, value: session.userId);
-    await _storage.write(key: _userNameKey, value: session.userName);
+    await _storage.write(key: _nameKey, value: session.name);
     await _storage.write(key: _emailKey, value: session.email);
   }
 
@@ -132,7 +87,7 @@ class SecureSessionStore implements SessionStore {
     _cached = null;
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _userIdKey);
-    await _storage.delete(key: _userNameKey);
+    await _storage.delete(key: _nameKey);
     await _storage.delete(key: _emailKey);
   }
 }
@@ -140,29 +95,3 @@ class SecureSessionStore implements SessionStore {
 final Provider<SessionStore> sessionStoreProvider = Provider<SessionStore>(
   (ref) => SecureSessionStore(),
 );
-
-/// The session as the app sees it. The router guard watches this, so clearing
-/// it is what sends a signed-out customer back to the sign-in screen.
-class SessionNotifier extends AsyncNotifier<Session?> {
-  @override
-  Future<Session?> build() => ref.read(sessionStoreProvider).read();
-
-  Future<void> signIn(Session session) async {
-    await ref.read(sessionStoreProvider).write(session);
-    state = AsyncData(session);
-  }
-
-  Future<void> signOut() => _forget();
-
-  /// Called when the server rejects the token. Identical to signing out, but
-  /// named for what happened so a caller can tell the two apart.
-  Future<void> revoke() => _forget();
-
-  Future<void> _forget() async {
-    await ref.read(sessionStoreProvider).clear();
-    state = const AsyncData(null);
-  }
-}
-
-final AsyncNotifierProvider<SessionNotifier, Session?> sessionProvider =
-    AsyncNotifierProvider<SessionNotifier, Session?>(SessionNotifier.new);
