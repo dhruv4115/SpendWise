@@ -35,6 +35,17 @@ int readInt(Map<String, Object?> json, String key) {
   _malformed(key, value, 'a whole number');
 }
 
+/// A string that may be absent.
+///
+/// Missing, null and empty all read as null. For a paging cursor that matters:
+/// sending `""` back as a cursor would ask for page one again, for ever.
+String? readStringOrNull(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value == null) return null;
+  if (value is String) return value.isEmpty ? null : value;
+  _malformed(key, value, 'a string or null');
+}
+
 int readIntOr(Map<String, Object?> json, String key, int fallback) {
   final value = json[key];
   if (value == null) return fallback;

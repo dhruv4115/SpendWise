@@ -8,7 +8,8 @@ import '../features/auth/state/session_provider.dart';
 import '../features/budgets/presentation/budgets_screen.dart';
 import '../features/merchants/presentation/merchants_screen.dart';
 import '../features/overview/presentation/overview_screen.dart';
-import '../features/transactions/presentation/transactions_screen.dart';
+import '../features/transactions/presentation/feed_screen.dart';
+import '../features/transactions/presentation/transaction_detail_screen.dart';
 import 'routes.dart';
 
 /// Where the app opens. Overridable so a test can start at a deep link, and
@@ -72,7 +73,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: Routes.transactionsPath,
                 name: Routes.transactionsName,
-                builder: (context, state) => const TransactionsScreen(),
+                builder: (context, state) => const FeedScreen(),
                 routes: [
                   GoRoute(
                     path: Routes.idSegment,

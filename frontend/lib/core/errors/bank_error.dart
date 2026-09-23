@@ -58,6 +58,14 @@ sealed class BankError implements Exception {
       Object.hash(runtimeType, message, code, traceId, statusCode);
 }
 
+/// Narrows whatever an `AsyncValue` caught to a [BankError].
+///
+/// Repositories throw nothing else, so anything that is not already one is a
+/// bug — but the customer still gets a plain message and a Retry, never a red
+/// screen or a stack trace.
+BankError asBankError(Object error) =>
+    error is BankError ? error : const UnknownError(code: 'UNEXPECTED');
+
 /// Rejects anything that would look wrong, leak internals or wrap badly in a
 /// snackbar: markup, multi-line dumps, bare codes and essays.
 String? _presentable(String? raw) {

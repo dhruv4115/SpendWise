@@ -1,8 +1,6 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spendwise/app/routes.dart';
-import 'package:spendwise/core/network/api_client.dart';
 
 import '../helpers/fake_api.dart';
 import '../helpers/fake_session_store.dart';
@@ -203,19 +201,10 @@ void main() {
       );
       await tester.pumpWidget(harness.app);
       await tester.pumpAndSettle();
-      expect(harness.location, Routes.transactionsPath);
 
-      // Stands in for the screen's own fetch, which arrives in a later phase.
-      // runAsync, because a request driven from the test body rather than
-      // from a tap needs the real clock to complete.
-      await tester.runAsync(() async {
-        await expectLater(
-          harness.container.read(dioProvider).get<Object?>('/transactions'),
-          throwsA(isA<DioException>()),
-        );
-      });
-      await tester.pumpAndSettle();
-
+      // Nothing here asks for the 401: the feed's own first-page fetch gets
+      // it, and the guard does the rest.
+      expect(api.requestsFor('GET', '/transactions'), hasLength(1));
       expect(harness.location, '/login?from=%2Ftransactions');
       expect(harness.store.stored, isNull);
     });

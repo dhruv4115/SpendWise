@@ -84,11 +84,17 @@ class SkeletonList extends StatelessWidget {
   const SkeletonList({
     super.key,
     this.itemCount = 6,
+    this.sectionCount = 0,
     this.padding = const EdgeInsets.all(16),
     this.label = 'Loading',
   });
 
   final int itemCount;
+
+  /// Splits the rows under this many placeholder section headers, for a list
+  /// grouped by day. Zero is a plain list.
+  final int sectionCount;
+
   final EdgeInsetsGeometry padding;
 
   /// Announced to screen readers in place of the blocks themselves.
@@ -96,18 +102,51 @@ class SkeletonList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sections = sectionCount < 1 ? 1 : sectionCount;
+    final children = <Widget>[];
+
+    for (var section = 0; section < sections; section++) {
+      if (sectionCount > 0) {
+        if (section > 0) children.add(const SizedBox(height: 28));
+        children
+          ..add(const _SkeletonHeader())
+          ..add(const SizedBox(height: 16));
+      }
+      // As even a split as the count allows; earlier sections take the spare.
+      final rows =
+          itemCount ~/ sections + (section < itemCount % sections ? 1 : 0);
+      for (var row = 0; row < rows; row++) {
+        if (row > 0) children.add(const SizedBox(height: 20));
+        children.add(const _SkeletonRow());
+      }
+    }
+
     return Semantics(
       label: label,
       liveRegion: true,
       container: true,
-      child: ListView.separated(
+      child: ListView(
         padding: padding,
-        itemCount: itemCount,
         physics: const NeverScrollableScrollPhysics(),
         shrinkWrap: true,
-        separatorBuilder: (_, __) => const SizedBox(height: 20),
-        itemBuilder: (_, __) => const _SkeletonRow(),
+        children: children,
       ),
+    );
+  }
+}
+
+/// A day header's placeholder: a label on the left, a total on the right.
+class _SkeletonHeader extends StatelessWidget {
+  const _SkeletonHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        Skeleton(width: 88, height: 14),
+        Spacer(),
+        Skeleton(width: 64, height: 14),
+      ],
     );
   }
 }
