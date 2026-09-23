@@ -66,6 +66,10 @@ String dayHeaderLabel(DateTime date, {DateTime? now}) {
       : _dayMonthYear.format(target);
 }
 
+/// `DateTime(2026, 9, 12)` -> `'12 Sep'`, for chart axes, tooltips and table
+/// rows where the month is already on screen.
+String shortDateLabel(DateTime date) => _dayMonth.format(date);
+
 /// A transaction's moment in full, for its detail screen:
 /// `Tue, 22 Sep 2026, 12:00 PM`.
 String dateTimeLabel(DateTime at) => _dateTime.format(at);

@@ -196,9 +196,10 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedKey> {
   /// caller can later put exactly those rows back. Rows already in [category]
   /// are left alone and not reported.
   ///
-  /// Only a settled feed is touched. One that is loading or has failed is
-  /// about to be replaced wholesale by the server's copy, which is the truth
-  /// either way.
+  /// A feed with rows is touched even mid-refresh: they stay on screen under
+  /// the spinner, so they should show the change, and the refresh replaces
+  /// them with the server's copy when it lands. A feed still loading its
+  /// first page, or showing an error, has no rows on screen to patch.
   Map<String, String> applyCategory(
     String category, {
     required bool Function(Transaction txn) where,

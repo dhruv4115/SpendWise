@@ -73,7 +73,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: Routes.transactionsPath,
                 name: Routes.transactionsName,
-                builder: (context, state) => const FeedScreen(),
+                builder: (context, state) => FeedScreen(
+                  category:
+                      state.uri.queryParameters[Routes.categoryQueryParam],
+                ),
                 routes: [
                   GoRoute(
                     path: Routes.idSegment,

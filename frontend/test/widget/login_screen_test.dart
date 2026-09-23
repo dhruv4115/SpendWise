@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spendwise/app/routes.dart';
+import 'package:spendwise/features/overview/presentation/overview_screen.dart';
 
 import '../helpers/fake_api.dart';
 import '../helpers/fake_session_store.dart';
@@ -97,7 +98,7 @@ void main() {
       await _fillAndSubmit(tester);
 
       expect(harness.location, Routes.overviewPath);
-      expect(find.text('Signed in as Asha Rao'), findsOneWidget);
+      expect(find.byType(OverviewScreen), findsOneWidget);
       expect(harness.store.stored, testSession);
     });
 

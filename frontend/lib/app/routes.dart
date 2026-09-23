@@ -40,10 +40,19 @@ abstract final class Routes {
   /// land there after signing in instead of on a generic home screen.
   static const String fromQueryParam = 'from';
 
+  /// Narrows the feed to one category id: `/transactions?category=food`.
+  static const String categoryQueryParam = 'category';
+
   /// Sub-route segments, relative to their branch. go_router joins these onto
   /// the branch path to form [transactionDetailPath] and friends.
   static const String idSegment = ':$idParam';
   static const String categorySegment = ':$categoryParam';
+
+  /// The feed narrowed to [category].
+  static String transactionsInCategory(String category) => Uri(
+        path: transactionsPath,
+        queryParameters: {categoryQueryParam: category},
+      ).toString();
 
   static String transactionDetail(String id) =>
       '$transactionsPath/${Uri.encodeComponent(id)}';

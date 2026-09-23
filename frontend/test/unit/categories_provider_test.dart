@@ -4,6 +4,7 @@ import 'package:spendwise/core/errors/bank_error.dart';
 import 'package:spendwise/core/network/api_client.dart';
 import 'package:spendwise/core/security/secure_session_store.dart';
 import 'package:spendwise/features/auth/state/session_provider.dart';
+import 'package:spendwise/features/categories/domain/category.dart';
 import 'package:spendwise/features/categories/state/categories_provider.dart';
 
 import '../helpers/categories.dart';

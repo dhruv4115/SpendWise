@@ -9,6 +9,9 @@ import '../../../core/widgets/async_error_view.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/skeleton.dart';
 import '../../auth/state/session_provider.dart';
+import '../../categories/domain/category.dart';
+import '../../categories/state/categories_provider.dart';
+import '../domain/transaction_filter.dart';
 import '../state/day_groups.dart';
 import '../state/feed_provider.dart';
 import '../state/month_provider.dart';
@@ -18,20 +21,29 @@ import '../widgets/transaction_tile.dart';
 /// The Spending tab: a month of transactions, newest first, under a sticky
 /// header for each day.
 class FeedScreen extends ConsumerWidget {
-  const FeedScreen({super.key});
+  const FeedScreen({super.key, this.category});
+
+  /// From the address, `/transactions?category=food`: the Overview's donut
+  /// opens the feed narrowed to the slice that was tapped. Null or empty is
+  /// every category.
+  final String? category;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final month = ref.watch(monthProvider);
     final isLatestMonth = month == ref.watch(latestMonthProvider);
-    final feedKey = FeedKey(month: month);
+    final only = category == null || category!.isEmpty ? null : category;
+    final feedKey = FeedKey(
+      month: month,
+      filter: only == null
+          ? TransactionFilter.none
+          : TransactionFilter(category: only),
+    );
     final feed = ref.watch(feedProvider(feedKey));
-
-    // Only a list with rows in it stays up while it refreshes — that is what
-    // pull-to-refresh draws over. An error or an empty month gives way to the
-    // skeleton, so tapping Retry or Refresh visibly does something.
-    final keepRowsWhileRefreshing =
-        !feed.hasError && (feed.valueOrNull?.items.isNotEmpty ?? false);
+    final categoryName = only == null
+        ? null
+        : (ref.watch(categoriesProvider).valueOrNull ?? const <Category>[])
+            .nameOf(only);
 
     return Scaffold(
       appBar: AppBar(
@@ -52,33 +64,85 @@ class FeedScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: feed.when(
-        skipLoadingOnRefresh: keepRowsWhileRefreshing,
-        loading: () => const SkeletonList(
-          itemCount: 8,
-          sectionCount: 2,
-          label: 'Loading transactions',
+      body: Column(
+        children: [
+          if (categoryName != null) _CategoryFilterBar(name: categoryName),
+          Expanded(child: _body(ref, feed, feedKey, categoryName)),
+        ],
+      ),
+    );
+  }
+
+  Widget _body(
+    WidgetRef ref,
+    AsyncValue<FeedState> feed,
+    FeedKey feedKey,
+    String? categoryName,
+  ) {
+    final month = feedKey.month;
+    // Only a list with rows in it stays up while it refreshes — that is what
+    // pull-to-refresh draws over. An error or an empty month gives way to the
+    // skeleton, so tapping Retry or Refresh visibly does something.
+    final keepRowsWhileRefreshing =
+        !feed.hasError && (feed.valueOrNull?.items.isNotEmpty ?? false);
+
+    return feed.when(
+      skipLoadingOnRefresh: keepRowsWhileRefreshing,
+      loading: () => const SkeletonList(
+        itemCount: 8,
+        sectionCount: 2,
+        label: 'Loading transactions',
+      ),
+      error: (error, _) => AsyncErrorView(
+        error: asBankError(error),
+        title: 'We could not load your transactions',
+        onRetry: () => ref.invalidate(feedProvider(feedKey)),
+        onSignInAgain: () => ref.read(sessionProvider.notifier).signOut(),
+      ),
+      data: (state) => state.items.isEmpty
+          ? EmptyView(
+              icon: Icons.receipt_long_outlined,
+              title: categoryName == null
+                  ? 'No transactions in ${monthKeyLabel(month)}'
+                  : 'No $categoryName transactions in '
+                      '${monthKeyLabel(month)}',
+              message: categoryName == null
+                  ? 'Payments and refunds from this month will show up here.'
+                  : 'Clear the category to see everything from this month.',
+              action: OutlinedButton.icon(
+                onPressed: () =>
+                    ref.read(feedProvider(feedKey).notifier).refresh(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
+            )
+          : _FeedList(feedKey: feedKey, state: state),
+    );
+  }
+}
+
+/// Says which category the feed is narrowed to, and clears it.
+///
+/// Clearing goes to the plain feed rather than back: the customer may have
+/// arrived from a link, with nothing behind it to go back to.
+class _CategoryFilterBar extends StatelessWidget {
+  const _CategoryFilterBar({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: InputChip(
+          avatar: const Icon(Icons.filter_list),
+          label: Text(name),
+          tooltip: 'Showing $name only',
+          deleteButtonTooltipMessage: 'Show every category',
+          onDeleted: () => context.go(Routes.transactionsPath),
         ),
-        error: (error, _) => AsyncErrorView(
-          error: asBankError(error),
-          title: 'We could not load your transactions',
-          onRetry: () => ref.invalidate(feedProvider(feedKey)),
-          onSignInAgain: () => ref.read(sessionProvider.notifier).signOut(),
-        ),
-        data: (state) => state.items.isEmpty
-            ? EmptyView(
-                icon: Icons.receipt_long_outlined,
-                title: 'No transactions in ${monthKeyLabel(month)}',
-                message:
-                    'Payments and refunds from this month will show up here.',
-                action: OutlinedButton.icon(
-                  onPressed: () =>
-                      ref.read(feedProvider(feedKey).notifier).refresh(),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Refresh'),
-                ),
-              )
-            : _FeedList(feedKey: feedKey, state: state),
       ),
     );
   }

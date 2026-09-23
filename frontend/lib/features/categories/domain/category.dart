@@ -77,3 +77,22 @@ class Category {
   @override
   int get hashCode => Object.hash(id, name, icon, color);
 }
+
+extension CategoryLookup on List<Category> {
+  /// The category with [id], or null when the list does not have it — a
+  /// category the server added after this list was fetched, say.
+  Category? byId(String id) {
+    for (final category in this) {
+      if (category.id == id) return category;
+    }
+    return null;
+  }
+
+  /// What to call [id] on screen: the server's name for it, or the id itself
+  /// with a capital letter while the list is missing or has not heard of it.
+  String nameOf(String id) => byId(id)?.name ?? fallbackCategoryName(id);
+}
+
+/// `food` -> `Food`. Only for when the real name is not available.
+String fallbackCategoryName(String id) =>
+    id.isEmpty ? id : '${id[0].toUpperCase()}${id.substring(1)}';
