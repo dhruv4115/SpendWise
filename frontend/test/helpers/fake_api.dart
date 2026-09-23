@@ -156,6 +156,24 @@ class FakeApi implements HttpClientAdapter {
     );
   }
 
+  /// The *next* matching call reaches the server — it is recorded, as if the
+  /// server acted on it — and then fails with a receive timeout, as if the
+  /// response was lost on the way back. The case an idempotency key exists
+  /// for: the client cannot tell whether its change landed.
+  void timeoutOnce(String method, String path) {
+    _addFirst(
+      method,
+      path,
+      _Route(
+        status: 0,
+        payload: '',
+        contentType: Headers.jsonContentType,
+        timesOut: true,
+        remaining: 1,
+      ),
+    );
+  }
+
   /// Registers a non-JSON body, such as the HTML error page a proxy returns.
   void respondRaw(
     String method,
@@ -219,6 +237,13 @@ class FakeApi implements HttpClientAdapter {
 
     if (route.delay != null) await Future<void>.delayed(route.delay!);
 
+    if (route.timesOut) {
+      throw DioException.receiveTimeout(
+        timeout: options.receiveTimeout ?? Duration.zero,
+        requestOptions: options,
+      );
+    }
+
     return ResponseBody.fromString(
       route.payload,
       route.status,
@@ -273,6 +298,7 @@ class _Route {
     this.headers = const {},
     this.delay,
     this.remaining,
+    this.timesOut = false,
   });
 
   final int status;
@@ -280,6 +306,7 @@ class _Route {
   final String contentType;
   final Map<String, String> headers;
   final Duration? delay;
+  final bool timesOut;
 
   /// Null means "answer for ever".
   int? remaining;

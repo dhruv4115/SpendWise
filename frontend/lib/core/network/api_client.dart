@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/state/session_provider.dart';
+import '../errors/bank_error.dart';
 import '../security/secure_session_store.dart';
 import 'api_config.dart';
 import 'error_mapper.dart';
+import 'idempotency.dart';
 
 /// Long enough for a cold mobile network, short enough that a wedged request
 /// surfaces as an error instead of an endless spinner.
@@ -130,6 +132,76 @@ Dio buildApiClient({
   ]);
 
   return dio;
+}
+
+/// The repository border, written once.
+///
+/// Repositories make their calls through these two methods, so the rules for
+/// crossing the border live in one place: a [DioException] leaves as the
+/// matching [BankError], and a 2xx whose body is not the object the caller
+/// expected leaves as an [UnknownError] carrying `malformedCode` — the parse
+/// detail names fields and values, so it never reaches a customer's banner.
+extension BankApi on Dio {
+  /// A GET whose response body is one JSON object.
+  Future<T> getObject<T>(
+    String path, {
+    Map<String, String>? query,
+    required T Function(Map<String, Object?> json) parse,
+    required String malformedCode,
+  }) {
+    return _object(
+      () => get<Object?>(path, queryParameters: query),
+      parse: parse,
+      malformedCode: malformedCode,
+    );
+  }
+
+  /// A POST, PUT or PATCH with a JSON body.
+  ///
+  /// [idempotencyKey] is the caller's, generated once per customer action and
+  /// reused by every retry of it, so a retry after a lost response replays the
+  /// server's first answer instead of applying the change twice.
+  Future<T> sendObject<T>(
+    String method,
+    String path, {
+    required Map<String, Object?> body,
+    required String idempotencyKey,
+    required T Function(Map<String, Object?> json) parse,
+    required String malformedCode,
+  }) {
+    return _object(
+      () => request<Object?>(
+        path,
+        data: body,
+        options: Options(
+          method: method,
+          headers: {idempotencyKeyHeader: idempotencyKey},
+        ),
+      ),
+      parse: parse,
+      malformedCode: malformedCode,
+    );
+  }
+
+  Future<T> _object<T>(
+    Future<Response<Object?>> Function() send, {
+    required T Function(Map<String, Object?> json) parse,
+    required String malformedCode,
+  }) async {
+    final Object? data;
+    try {
+      data = (await send()).data;
+    } on DioException catch (error) {
+      throw mapDioException(error);
+    }
+
+    if (data is! Map) throw UnknownError(code: malformedCode);
+    try {
+      return parse(Map<String, Object?>.from(data));
+    } on FormatException {
+      throw UnknownError(code: malformedCode);
+    }
+  }
 }
 
 /// The transport underneath the client. Null means "use a real socket".

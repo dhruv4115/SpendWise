@@ -119,4 +119,120 @@ void main() {
       );
     });
   });
+
+  group('TransactionRepository.recategorise', () {
+    test('PATCHes with the caller\'s key and parses the result', () async {
+      final api = FakeApi()
+        ..on(
+          'PATCH',
+          '/transactions/txn_1',
+          body: {
+            'updated': txnWire(id: 'txn_1', category: 'groceries'),
+            'changedIds': ['txn_1', 'txn_2'],
+            'undoToken': 'undo-1',
+          },
+        );
+
+      final result = await _repository(api).recategorise(
+        id: 'txn_1',
+        category: 'groceries',
+        applyToMerchant: true,
+        idempotencyKey: 'key-1',
+      );
+
+      expect(result.updated.category, 'groceries');
+      expect(result.updated.at.isUtc, isFalse);
+      expect(result.changedIds, ['txn_1', 'txn_2']);
+      expect(result.undoToken, 'undo-1');
+      expect(result.toString(), isNot(contains('undo-1')));
+
+      final request = api.requests.single;
+      expect(request.method, 'PATCH');
+      expect(request.idempotencyKey, 'key-1');
+      expect(
+          request.jsonBody, {'category': 'groceries', 'applyToMerchant': true});
+    });
+
+    test('maps a 422 to ValidationError with the field reason', () async {
+      final api = FakeApi()
+        ..respondError(
+          'PATCH',
+          '/transactions/txn_1',
+          status: 422,
+          code: 'VALIDATION_FAILED',
+          message: 'That category does not exist.',
+          details: {'category': 'Unknown category.'},
+        );
+
+      await expectLater(
+        _repository(api).recategorise(
+          id: 'txn_1',
+          category: 'crypto',
+          applyToMerchant: false,
+          idempotencyKey: 'key-1',
+        ),
+        throwsA(
+          isA<ValidationError>()
+              .having((e) => e.statusCode, 'statusCode', 422)
+              .having((e) => e.fieldErrors, 'fieldErrors',
+                  {'category': 'Unknown category.'}),
+        ),
+      );
+    });
+
+    test('a 200 with a malformed body is an UnknownError', () async {
+      final api = FakeApi()
+        ..on('PATCH', '/transactions/txn_1', body: {
+          'updated': txnWire(id: 'txn_1'),
+          'changedIds': 'txn_1',
+          'undoToken': 'undo-1',
+        });
+
+      await expectLater(
+        _repository(api).recategorise(
+          id: 'txn_1',
+          category: 'food',
+          applyToMerchant: false,
+          idempotencyKey: 'key-1',
+        ),
+        throwsA(
+          isA<UnknownError>()
+              .having((e) => e.code, 'code', 'MALFORMED_RECATEGORISE_RESULT'),
+        ),
+      );
+    });
+  });
+
+  group('TransactionRepository.undo', () {
+    test('POSTs the token with the caller\'s key and returns the ids',
+        () async {
+      final api = FakeApi()
+        ..on('POST', '/transactions/undo', body: {
+          'restoredIds': ['txn_1', 'txn_2'],
+        });
+
+      final restored =
+          await _repository(api).undo('undo-1', idempotencyKey: 'key-2');
+
+      expect(restored, ['txn_1', 'txn_2']);
+      final request = api.requests.single;
+      expect(request.idempotencyKey, 'key-2');
+      expect(request.jsonBody, {'undoToken': 'undo-1'});
+    });
+
+    test('an already-redeemed token is a NotFoundError', () async {
+      final api = FakeApi()
+        ..respondError(
+          'POST',
+          '/transactions/undo',
+          status: 404,
+          code: 'UNDO_TOKEN_INVALID',
+        );
+
+      await expectLater(
+        _repository(api).undo('undo-1', idempotencyKey: 'key-2'),
+        throwsA(isA<NotFoundError>()),
+      );
+    });
+  });
 }

@@ -9,6 +9,7 @@ final RegExp _monthKeyPattern = RegExp(r'^(\d{4})-(\d{2})$');
 final DateFormat _dayMonth = DateFormat('d MMM');
 final DateFormat _dayMonthYear = DateFormat('d MMM y');
 final DateFormat _monthLabel = DateFormat('MMMM y');
+final DateFormat _dateTime = DateFormat('EEE, d MMM y, h:mm a');
 
 /// `DateTime(2026, 9, 22)` -> `'2026-09'`, using local date components.
 String monthKey(DateTime date) {
@@ -31,6 +32,14 @@ DateTime parseMonthKey(String key) {
   }
   return DateTime(int.parse(match.group(1)!), month);
 }
+
+/// The month the server files [at] under.
+///
+/// The API buckets by UTC month, so a payment at 1 a.m. IST on 1 October is a
+/// September transaction there — and it is September's summary that moves
+/// when it is recategorised. This reads the UTC calendar; it does not convert
+/// the model, which stays in local time.
+String serverMonthKey(DateTime at) => monthKey(at.toUtc());
 
 /// Month arithmetic that rolls across year boundaries in both directions:
 /// `addMonths('2026-01', -1) == '2025-12'`.
@@ -56,6 +65,10 @@ String dayHeaderLabel(DateTime date, {DateTime? now}) {
       ? _dayMonth.format(target)
       : _dayMonthYear.format(target);
 }
+
+/// A transaction's moment in full, for its detail screen:
+/// `Tue, 22 Sep 2026, 12:00 PM`.
+String dateTimeLabel(DateTime at) => _dateTime.format(at);
 
 /// Parses a wire timestamp and returns local time.
 ///

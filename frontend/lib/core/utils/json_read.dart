@@ -115,6 +115,27 @@ Map<String, int> readIntMap(Map<String, Object?> json, String key) {
   return result;
 }
 
+/// A nested object, such as the `updated` transaction in a PATCH response.
+Map<String, Object?> readObject(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is! Map) _malformed(key, value, 'an object');
+  return Map<String, Object?>.from(value);
+}
+
+/// A list of non-empty strings, such as a set of ids. Unmodifiable.
+List<String> readStringList(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is! List) _malformed(key, value, 'a list');
+
+  return List.unmodifiable([
+    for (final element in value)
+      if (element is String && element.isNotEmpty)
+        element
+      else
+        _malformed(key, element, 'a list of non-empty strings'),
+  ]);
+}
+
 /// A list of objects, each mapped through [item].
 List<T> readObjectList<T>(
   Map<String, Object?> json,

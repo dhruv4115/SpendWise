@@ -69,6 +69,14 @@ class FeedState {
   /// Derived rather than stored, so it can never disagree with [nextCursor].
   bool get hasMore => nextCursor != null;
 
+  /// The loaded row with [id], or null.
+  Transaction? find(String id) {
+    for (final txn in items) {
+      if (txn.id == id) return txn;
+    }
+    return null;
+  }
+
   /// A new state with [page] after the rows already here.
   FeedState appendPage(TransactionPage page) {
     return FeedState(
@@ -132,7 +140,11 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedKey> {
 
   @override
   Future<FeedState> build(FeedKey key) async {
-    ref.onDispose(() => _generation++);
+    final registry = ref.watch(feedRegistryProvider).._add(key);
+    ref.onDispose(() {
+      _generation++;
+      registry._remove(key);
+    });
 
     final page = await ref.watch(transactionRepositoryProvider).fetchPage(
           month: key.month,
@@ -164,14 +176,81 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedKey> {
             limit: pageSize,
           );
       if (generation != _generation) return;
-      state = AsyncData(loading.appendPage(page));
+      // Onto the rows as they are now, not as they were when the request went
+      // out: a row recategorised while the page was in flight keeps its new
+      // category.
+      state = AsyncData(_latest(loading).appendPage(page));
     } on BankError catch (error) {
       if (generation != _generation) return;
       state = AsyncData(
-        loading.copyWith(isLoadingMore: false, loadMoreError: error),
+        _latest(loading).copyWith(isLoadingMore: false, loadMoreError: error),
       );
     }
   }
+
+  FeedState _latest(FeedState fallback) => state.valueOrNull ?? fallback;
+
+  /// Moves every loaded row [where] picks to [category], on this frame.
+  ///
+  /// Returns the category each moved row had before, keyed by id, so the
+  /// caller can later put exactly those rows back. Rows already in [category]
+  /// are left alone and not reported.
+  ///
+  /// Only a settled feed is touched. One that is loading or has failed is
+  /// about to be replaced wholesale by the server's copy, which is the truth
+  /// either way.
+  Map<String, String> applyCategory(
+    String category, {
+    required bool Function(Transaction txn) where,
+  }) {
+    final current = _settled;
+    if (current == null) return const {};
+
+    final previous = <String, String>{};
+    final items = List<Transaction>.of(current.items);
+    for (var i = 0; i < items.length; i++) {
+      final txn = items[i];
+      if (txn.category == category || !where(txn)) continue;
+      previous[txn.id] = txn.category;
+      items[i] = txn.copyWith(category: category);
+    }
+
+    if (previous.isEmpty) return const {};
+    state = AsyncData(current.copyWith(items: List.unmodifiable(items)));
+    return Map.unmodifiable(previous);
+  }
+
+  /// Puts back what [applyCategory] moved: each row in [previous] returns to
+  /// the category recorded for it, provided it still shows [ifStill].
+  ///
+  /// A row showing anything else has been replaced since — by a refresh, say
+  /// — and the server's newer copy is left alone.
+  void restoreCategories(
+    Map<String, String> previous, {
+    required String ifStill,
+  }) {
+    final current = _settled;
+    if (current == null || previous.isEmpty) return;
+
+    var changed = false;
+    final items = List<Transaction>.of(current.items);
+    for (var i = 0; i < items.length; i++) {
+      final txn = items[i];
+      final before = previous[txn.id];
+      if (before == null || txn.category != ifStill) continue;
+      items[i] = txn.copyWith(category: before);
+      changed = true;
+    }
+
+    if (changed) {
+      state = AsyncData(current.copyWith(items: List.unmodifiable(items)));
+    }
+  }
+
+  FeedState? get _settled => switch (state) {
+        AsyncData(:final value) => value,
+        _ => null,
+      };
 
   /// Throws everything away and loads page one again.
   ///
@@ -187,6 +266,28 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedKey> {
     }
   }
 }
+
+/// Which feeds exist right now.
+///
+/// A recategorisation has to reach every loaded copy of a transaction, and a
+/// provider family cannot list its members, so each feed signs in here when
+/// it builds and out when it is disposed.
+///
+/// A service object like the Dio client, not state: nothing watches it for
+/// changes, and it holds keys, never rows.
+class FeedRegistry {
+  final Set<FeedKey> _live = {};
+
+  /// A snapshot, so a caller can loop over it while feeds come and go.
+  Set<FeedKey> get liveKeys => Set.unmodifiable(_live);
+
+  void _add(FeedKey key) => _live.add(key);
+
+  void _remove(FeedKey key) => _live.remove(key);
+}
+
+final Provider<FeedRegistry> feedRegistryProvider =
+    Provider<FeedRegistry>((ref) => FeedRegistry());
 
 final AutoDisposeAsyncNotifierProviderFamily<FeedNotifier, FeedState, FeedKey>
     feedProvider =

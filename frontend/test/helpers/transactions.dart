@@ -1,10 +1,13 @@
 import 'package:spendwise/features/transactions/domain/transaction.dart';
 
 /// A transaction as the domain holds it. [at] is local time, as every model
-/// stores it; it defaults to midday on 22 Sep 2026.
+/// stores it; it defaults to midday on 22 Sep 2026. The merchant key is always
+/// derived from [merchantName], so rows with different [merchantRaw]
+/// spellings of one merchant still group together.
 Transaction txn({
   String id = 'txn_0001',
   String merchantName = 'Swiggy',
+  String? merchantRaw,
   String category = 'food',
   int amountPaise = -45250,
   DateTime? at,
@@ -12,7 +15,7 @@ Transaction txn({
 }) {
   return Transaction(
     id: id,
-    merchantRaw: '${merchantName.toUpperCase()}*1234',
+    merchantRaw: merchantRaw ?? '${merchantName.toUpperCase()}*1234',
     merchantName: merchantName,
     merchantKey: merchantName.toLowerCase(),
     category: category,
@@ -26,6 +29,7 @@ Transaction txn({
 Map<String, Object?> txnWire({
   String id = 'txn_0001',
   String merchantName = 'Swiggy',
+  String? merchantRaw,
   String category = 'food',
   int amountPaise = -45250,
   DateTime? at,
@@ -34,6 +38,7 @@ Map<String, Object?> txnWire({
   return txn(
     id: id,
     merchantName: merchantName,
+    merchantRaw: merchantRaw,
     category: category,
     amountPaise: amountPaise,
     at: at,

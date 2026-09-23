@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:spendwise/app/routes.dart';
+import 'package:spendwise/features/transactions/presentation/transaction_screen.dart';
 
 import '../helpers/fake_api.dart';
 import '../helpers/fake_session_store.dart';
@@ -8,6 +9,11 @@ import '../helpers/test_app.dart';
 
 const String _deepLink = '/transactions/abc';
 const String _loginWithFrom = '/login?from=%2Ftransactions%2Fabc';
+
+/// The detail screen the deep link points at, whatever it is showing.
+final Finder _detailScreen = find.byWidgetPredicate(
+  (widget) => widget is TransactionScreen && widget.id == 'abc',
+);
 
 Finder get _submit => find.widgetWithText(FilledButton, 'Sign in');
 
@@ -38,7 +44,7 @@ void main() {
 
       expect(harness.location, _loginWithFrom);
       expect(find.text('Sign in'), findsOneWidget);
-      expect(find.text('Transaction abc'), findsNothing);
+      expect(_detailScreen, findsNothing);
     });
 
     testWidgets('and after signing in, the deep link opens', (tester) async {
@@ -51,7 +57,7 @@ void main() {
       await _signIn(tester);
 
       expect(harness.location, _deepLink);
-      expect(find.text('Transaction abc'), findsOneWidget);
+      expect(_detailScreen, findsOneWidget);
       // Inside the shell, not on top of it: the tabs are still there.
       expect(find.byType(NavigationBar), findsOneWidget);
     });
@@ -96,7 +102,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(harness.location, _deepLink);
-      expect(find.text('Transaction abc'), findsOneWidget);
+      expect(_detailScreen, findsOneWidget);
     });
 
     testWidgets('cannot sit on the sign-in screen', (tester) async {
@@ -121,7 +127,7 @@ void main() {
       );
       await tester.pumpWidget(harness.app);
       await tester.pumpAndSettle();
-      expect(find.text('Transaction abc'), findsOneWidget);
+      expect(_detailScreen, findsOneWidget);
 
       // Away to Budgets…
       await tester.tap(find.text('Budgets'));
@@ -132,7 +138,7 @@ void main() {
       await tester.tap(find.text('Spending'));
       await tester.pumpAndSettle();
       expect(harness.location, _deepLink);
-      expect(find.text('Transaction abc'), findsOneWidget);
+      expect(_detailScreen, findsOneWidget);
     });
 
     testWidgets('an unknown location gets the not-found screen', (
