@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/state/session_provider.dart';
+import '../features/budgets/presentation/budget_edit_screen.dart';
 import '../features/budgets/presentation/budgets_screen.dart';
 import '../features/merchants/presentation/merchants_screen.dart';
 import '../features/overview/presentation/overview_screen.dart';
@@ -100,7 +101,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: Routes.categorySegment,
                     name: Routes.budgetDetailName,
-                    builder: (context, state) => BudgetDetailScreen(
+                    builder: (context, state) => BudgetEditScreen(
                       category:
                           state.pathParameters[Routes.categoryParam] ?? '',
                     ),

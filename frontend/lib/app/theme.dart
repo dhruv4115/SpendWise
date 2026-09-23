@@ -97,20 +97,8 @@ class BudgetRiskTheme extends ThemeExtension<BudgetRiskTheme> {
   /// At or past 80% of the limit, but not over it.
   final RiskStyle warning;
 
-  /// Spent more than the limit.
+  /// At or past the limit.
   final RiskStyle over;
-
-  /// Budget risk from signed paise, without ever touching a double.
-  ///
-  /// [spentPaise] is "spend" — already negated, so a positive number means
-  /// money went out. A month whose refunds outweigh its spends is [safe].
-  RiskStyle forSpend({required int spentPaise, required int limitPaise}) {
-    if (limitPaise <= 0) return spentPaise > 0 ? over : safe;
-    if (spentPaise > limitPaise) return over;
-    // spent / limit >= 0.8, as integers.
-    if (spentPaise * 5 >= limitPaise * 4) return warning;
-    return safe;
-  }
 
   @override
   BudgetRiskTheme copyWith({
@@ -172,7 +160,7 @@ abstract final class AppTheme {
       containerColor: Color(0xFFFFE8C2),
       onContainerColor: Color(0xFF4A2B00),
       icon: Icons.warning_amber_rounded,
-      label: 'Close to limit',
+      label: 'Nearing limit',
     ),
     over: RiskStyle(
       color: Color(0xFFB3261E),
@@ -199,7 +187,7 @@ abstract final class AppTheme {
       containerColor: Color(0xFF523400),
       onContainerColor: Color(0xFFFFDFB0),
       icon: Icons.warning_amber_rounded,
-      label: 'Close to limit',
+      label: 'Nearing limit',
     ),
     over: RiskStyle(
       color: Color(0xFFFFB4AB),
@@ -210,6 +198,15 @@ abstract final class AppTheme {
       label: 'Over budget',
     ),
   );
+
+  /// The risk palette from [theme].
+  ///
+  /// Falls back to the light one rather than returning null: a theme built
+  /// without the extension — a bare `MaterialApp` in a test — should still
+  /// paint a budget, and a missing palette must never be the reason a badge
+  /// loses its colour.
+  static BudgetRiskTheme riskOf(ThemeData theme) =>
+      theme.extension<BudgetRiskTheme>() ?? _lightRisk;
 
   static ThemeData light() => _build(Brightness.light, _lightRisk);
 

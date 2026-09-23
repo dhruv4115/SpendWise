@@ -26,6 +26,38 @@ class BudgetRepository {
       malformedCode: 'MALFORMED_BUDGETS',
     );
   }
+
+  /// Sets [category]'s limit for [month], creating the budget or replacing
+  /// the limit it already had.
+  ///
+  /// The budget that comes back carries the whole month's spend, whichever
+  /// day of it the limit was set on: a limit is a ceiling for the month, not
+  /// from now on.
+  ///
+  /// [idempotencyKey] belongs to the customer's action rather than to this
+  /// call, so a retry after a lost response replays the first outcome instead
+  /// of setting the limit twice. A negative limit, an unknown category or a
+  /// month that is not `YYYY-MM` is a 422, and arrives as a [ValidationError]
+  /// whose `fieldErrors` name the field the server rejected.
+  Future<Budget> upsertBudget({
+    required String category,
+    required String month,
+    required int limitPaise,
+    required String idempotencyKey,
+  }) {
+    return _dio.sendObject(
+      'PUT',
+      budgetsPath,
+      body: {
+        'category': category,
+        'month': month,
+        'limitPaise': limitPaise,
+      },
+      idempotencyKey: idempotencyKey,
+      parse: Budget.fromJson,
+      malformedCode: 'MALFORMED_BUDGET',
+    );
+  }
 }
 
 final Provider<BudgetRepository> budgetRepositoryProvider =

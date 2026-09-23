@@ -68,24 +68,18 @@ void main() {
     });
   });
 
-  group('BudgetRiskTheme.forSpend', () {
-    final risk = AppTheme.light().extension<BudgetRiskTheme>()!;
+  group('BudgetRiskTheme', () {
+    // Where the thresholds sit is riskFor's business, and
+    // test/unit/budget_risk_test.dart is where they are pinned. What matters
+    // here is that the palette gives each of the three states its own icon
+    // and its own words, so colour is never carrying the meaning alone.
+    test('gives each risk a distinct icon and label', () {
+      final risk = AppTheme.riskOf(AppTheme.light());
+      final styles = [risk.safe, risk.warning, risk.over];
 
-    test('crosses into warning at exactly 80% of the limit', () {
-      expect(risk.forSpend(spentPaise: 7999, limitPaise: 10000), risk.safe);
-      expect(risk.forSpend(spentPaise: 8000, limitPaise: 10000), risk.warning);
-      expect(risk.forSpend(spentPaise: 10000, limitPaise: 10000), risk.warning);
-      expect(risk.forSpend(spentPaise: 10001, limitPaise: 10000), risk.over);
-    });
-
-    test('treats any spend against a zero limit as over', () {
-      expect(risk.forSpend(spentPaise: 1, limitPaise: 0), risk.over);
-      expect(risk.forSpend(spentPaise: 0, limitPaise: 0), risk.safe);
-    });
-
-    test('a month of net refunds is never a risk', () {
-      expect(risk.forSpend(spentPaise: -500, limitPaise: 0), risk.safe);
-      expect(risk.forSpend(spentPaise: -500, limitPaise: 10000), risk.safe);
+      expect(styles.map((style) => style.label).toSet(), hasLength(3));
+      expect(styles.map((style) => style.icon).toSet(), hasLength(3));
+      expect(styles.map((style) => style.color).toSet(), hasLength(3));
     });
   });
 
