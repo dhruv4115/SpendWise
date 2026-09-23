@@ -136,4 +136,27 @@ void main() {
       expect(() => isoUtcToLocal('yesterday'), throwsFormatException);
     });
   });
+
+  group('date ranges', () {
+    test('dateOnly and endOfDay bracket the whole local day', () {
+      final at = DateTime(2026, 9, 12, 15, 42, 7);
+
+      expect(dateOnly(at), DateTime(2026, 9, 12));
+      expect(endOfDay(at), DateTime(2026, 9, 12, 23, 59, 59, 999));
+      expect(endOfDay(at).isBefore(DateTime(2026, 9, 13)), isTrue);
+    });
+
+    test('dateRangeLabel says which ends are set', () {
+      final start = DateTime(2026, 9, 1);
+      final end = DateTime(2026, 9, 12, 23, 59, 59, 999);
+
+      expect(dateRangeLabel(null, null), 'Any date');
+      expect(dateRangeLabel(start, null), 'From 1 Sep');
+      expect(dateRangeLabel(null, end), 'Until 12 Sep');
+      expect(dateRangeLabel(start, end), '1 Sep – 12 Sep');
+      expect(
+          dateRangeLabel(DateTime(2026, 9, 5), endOfDay(DateTime(2026, 9, 5))),
+          '5 Sep');
+    });
+  });
 }

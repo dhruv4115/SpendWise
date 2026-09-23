@@ -119,4 +119,30 @@ void main() {
       expect(abbreviate(-999), '-₹9'); // 9.99 rupees truncates to 9
     });
   });
+
+  group('paiseToInput', () {
+    test('writes what a customer would type: no sign, no grouping', () {
+      expect(paiseToInput(50000), '500');
+      expect(paiseToInput(25050), '250.50');
+      expect(paiseToInput(12345678), '123456.78');
+      expect(paiseToInput(5), '0.05');
+      expect(paiseToInput(-45250), '-452.50');
+    });
+
+    test('round-trips through parseRupeesToPaise', () {
+      for (final paise in [0, 1, 99, 100, 25050, 100000, 123456789, -7]) {
+        expect(parseRupeesToPaise(paiseToInput(paise)), paise);
+      }
+    });
+  });
+
+  group('amountRangeLabel', () {
+    test('says which ends are set', () {
+      expect(amountRangeLabel(null, null), 'Any amount');
+      expect(amountRangeLabel(50000, null), 'At least ₹500.00');
+      expect(amountRangeLabel(null, 100000), 'Up to ₹1,000.00');
+      expect(amountRangeLabel(50000, 100000), '₹500.00 – ₹1,000.00');
+      expect(amountRangeLabel(50000, 50000), '₹500.00');
+    });
+  });
 }

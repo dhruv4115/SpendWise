@@ -70,6 +70,31 @@ String dayHeaderLabel(DateTime date, {DateTime? now}) {
 /// rows where the month is already on screen.
 String shortDateLabel(DateTime date) => _dayMonth.format(date);
 
+/// Midnight at the start of [at]'s local day.
+DateTime dateOnly(DateTime at) => DateTime(at.year, at.month, at.day);
+
+/// The last millisecond of [day]'s local day: an inclusive upper bound that
+/// still takes in a payment at 11:59 p.m. Milliseconds rather than
+/// microseconds, because that is as fine as the server's clock goes.
+DateTime endOfDay(DateTime day) =>
+    DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+
+/// A date filter in words, for its chip and the sheet's date button:
+/// `1 Sep – 12 Sep`, `5 Sep` for a single day, `From 1 Sep`, `Until 12 Sep`,
+/// or `Any date`.
+String dateRangeLabel(DateTime? from, DateTime? to) {
+  return switch ((from, to)) {
+    (null, null) => 'Any date',
+    (final DateTime start, null) => 'From ${shortDateLabel(start)}',
+    (null, final DateTime end) => 'Until ${shortDateLabel(end)}',
+    (final DateTime start, final DateTime end)
+        when dateOnly(start) == dateOnly(end) =>
+      shortDateLabel(start),
+    (final DateTime start, final DateTime end) =>
+      '${shortDateLabel(start)} – ${shortDateLabel(end)}',
+  };
+}
+
 /// A transaction's moment in full, for its detail screen:
 /// `Tue, 22 Sep 2026, 12:00 PM`.
 String dateTimeLabel(DateTime at) => _dateTime.format(at);

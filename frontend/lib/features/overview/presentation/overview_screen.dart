@@ -132,8 +132,8 @@ class _OverviewBody extends ConsumerWidget {
               ),
             (false, false) => SpendDonut(
                 slices: data.slices,
-                // Pushed, so Back returns here. The feed reads the category
-                // from the address until the filter sheet arrives.
+                // Pushed, so Back returns here. The feed seeds its filter
+                // from the category in the address.
                 onSliceTap: (slice) => context.push(
                   Routes.transactionsInCategory(slice.category!),
                 ),

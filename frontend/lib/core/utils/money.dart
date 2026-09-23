@@ -53,6 +53,31 @@ int? parseRupeesToPaise(String? input) {
   return match.group(1) == '-' ? -paise : paise;
 }
 
+/// Paise as a customer would type them back into an amount field: `50000`
+/// -> `500`, `25050` -> `250.50`. No rupee sign and no grouping, so
+/// [parseRupeesToPaise] reads the text straight back to the same paise.
+String paiseToInput(int paise) {
+  final magnitude = paise.abs();
+  final sign = paise < 0 ? '-' : '';
+  final rupees = magnitude ~/ 100;
+  final fraction = magnitude % 100;
+  if (fraction == 0) return '$sign$rupees';
+  return '$sign$rupees.${fraction.toString().padLeft(2, '0')}';
+}
+
+/// An amount filter in words, for the chip that shows it: `₹500.00 –
+/// ₹1,000.00`, `At least ₹500.00`, `Up to ₹1,000.00`, or `Any amount`.
+String amountRangeLabel(int? minPaise, int? maxPaise) {
+  return switch ((minPaise, maxPaise)) {
+    (null, null) => 'Any amount',
+    (final int min, null) => 'At least ${formatPaise(min)}',
+    (null, final int max) => 'Up to ${formatPaise(max)}',
+    (final int min, final int max) when min == max => formatPaise(min),
+    (final int min, final int max) =>
+      '${formatPaise(min)} – ${formatPaise(max)}',
+  };
+}
+
 /// Short form for chart axes and tiles: `₹999`, `₹12.3K`, `₹1.2L`, `₹3.4Cr`.
 ///
 /// Truncates rather than rounds, so a value never appears to cross the next

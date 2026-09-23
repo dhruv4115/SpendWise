@@ -32,6 +32,38 @@ String? passwordValidator(String? value) {
   return null;
 }
 
+/// Validates an optional amount typed in rupees, such as the lower end of an
+/// amount filter. Empty is fine: it means "no bound".
+String? optionalAmountValidator(String? value) {
+  final text = value?.trim() ?? '';
+  if (text.isEmpty) return null;
+
+  final paise = parseRupeesToPaise(text);
+  if (paise == null) {
+    return 'Enter an amount in rupees, for example 500 or 499.50.';
+  }
+  if (paise < 0) {
+    return 'Leave out the minus sign. Spends and refunds both match.';
+  }
+  return null;
+}
+
+/// Validates the upper end of an amount range against its lower end, [min].
+///
+/// The comparison is only made when both are readable amounts: an unreadable
+/// minimum already has its own message under its own field.
+String? maxAmountValidator(String? value, {required String? min}) {
+  final own = optionalAmountValidator(value);
+  if (own != null) return own;
+
+  final low = parseRupeesToPaise(min);
+  final high = parseRupeesToPaise(value);
+  if (low != null && high != null && high < low) {
+    return 'The maximum must be at least the minimum.';
+  }
+  return null;
+}
+
 /// Validates a budget limit typed in rupees.
 String? budgetAmountValidator(String? value) {
   final text = value?.trim() ?? '';

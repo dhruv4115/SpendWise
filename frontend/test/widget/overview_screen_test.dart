@@ -15,6 +15,7 @@ import 'package:spendwise/features/overview/widgets/daily_spend_line.dart';
 import 'package:spendwise/features/overview/widgets/spend_donut.dart';
 import 'package:spendwise/features/overview/widgets/summary_header_card.dart';
 import 'package:spendwise/features/transactions/presentation/feed_screen.dart';
+import 'package:spendwise/features/transactions/state/filter_provider.dart';
 import 'package:spendwise/features/transactions/state/month_provider.dart';
 
 import '../helpers/categories.dart';
@@ -261,10 +262,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(harness.location, '/transactions?category=groceries');
 
-      // Clearing the chip shows every category.
+      // Clearing the chip shows every category. The address only seeded the
+      // filter; the filter is what changes, and Back still leads home.
       await tester.tap(find.byTooltip('Show every category'));
       await tester.pumpAndSettle();
-      expect(harness.location, Routes.transactionsPath);
+      expect(harness.container.read(filterStateNotifier).category, isNull);
       expect(find.byType(InputChip), findsNothing);
       expect(
         api
@@ -274,6 +276,10 @@ void main() {
             .containsKey('category'),
         isFalse,
       );
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(harness.location, Routes.overviewPath);
     });
   });
 

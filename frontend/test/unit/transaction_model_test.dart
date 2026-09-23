@@ -505,6 +505,24 @@ void main() {
       expect(TransactionFilter.none.toQueryParameters(), isEmpty);
     });
 
+    test('a range counts once, whichever of its ends are set', () {
+      expect(const TransactionFilter(minPaise: 1).activeCount, 1);
+      expect(const TransactionFilter(minPaise: 1, maxPaise: 9).activeCount, 1);
+      expect(
+        TransactionFilter(
+          category: 'food',
+          query: 'swiggy',
+          minPaise: 1,
+          maxPaise: 9,
+          from: DateTime.utc(2026, 9, 1),
+          to: DateTime.utc(2026, 9, 30),
+        ).activeCount,
+        4,
+      );
+      expect(TransactionFilter(to: DateTime.utc(2026)).hasDateRange, isTrue);
+      expect(const TransactionFilter(maxPaise: 0).hasAmountRange, isTrue);
+    });
+
     test('whitespace is not a search', () {
       const filter = TransactionFilter(query: '   ');
 

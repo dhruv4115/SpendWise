@@ -91,4 +91,53 @@ void main() {
       );
     });
   });
+
+  group('optionalAmountValidator', () {
+    test('an empty field is no bound, and fine', () {
+      expect(optionalAmountValidator(null), isNull);
+      expect(optionalAmountValidator(''), isNull);
+      expect(optionalAmountValidator('   '), isNull);
+    });
+
+    test('accepts amounts in rupees', () {
+      expect(optionalAmountValidator('500'), isNull);
+      expect(optionalAmountValidator('₹1,250.50'), isNull);
+      expect(optionalAmountValidator('0'), isNull);
+    });
+
+    test('rejects what is not an amount, and a minus sign', () {
+      const notAnAmount =
+          'Enter an amount in rupees, for example 500 or 499.50.';
+      expect(optionalAmountValidator('12.345'), notAnAmount);
+      expect(optionalAmountValidator('five hundred'), notAnAmount);
+      expect(
+        optionalAmountValidator('-100'),
+        'Leave out the minus sign. Spends and refunds both match.',
+      );
+    });
+  });
+
+  group('maxAmountValidator', () {
+    const maxBelowMin = 'The maximum must be at least the minimum.';
+
+    test('a maximum below the minimum is an error', () {
+      expect(maxAmountValidator('500', min: '1000'), maxBelowMin);
+      expect(maxAmountValidator('999.99', min: '1,000'), maxBelowMin);
+    });
+
+    test('equal or above the minimum is fine, as is either end empty', () {
+      expect(maxAmountValidator('1000', min: '1000'), isNull);
+      expect(maxAmountValidator('1000.01', min: '1000'), isNull);
+      expect(maxAmountValidator('', min: '1000'), isNull);
+      expect(maxAmountValidator('500', min: ''), isNull);
+    });
+
+    test('its own format comes first; a bad minimum is not its problem', () {
+      expect(
+        maxAmountValidator('abc', min: '100'),
+        'Enter an amount in rupees, for example 500 or 499.50.',
+      );
+      expect(maxAmountValidator('100', min: 'abc'), isNull);
+    });
+  });
 }

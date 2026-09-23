@@ -41,24 +41,30 @@ class TransactionFilter {
   final DateTime? from;
   final DateTime? to;
 
-  /// Whether anything is actually narrowing the feed. Drives the "Filters (3)"
-  /// badge and the "Clear all" affordance.
-  bool get isActive =>
-      category != null ||
-      query.trim().isNotEmpty ||
-      minPaise != null ||
-      maxPaise != null ||
-      from != null ||
-      to != null;
+  /// Whether there is a search. Whitespace is not one.
+  bool get hasQuery => query.trim().isNotEmpty;
 
-  /// How many filters are applied, for a badge that says so in words.
+  /// Whether either end of the amount range is set.
+  bool get hasAmountRange => minPaise != null || maxPaise != null;
+
+  /// Whether either end of the date range is set.
+  bool get hasDateRange => from != null || to != null;
+
+  /// Whether anything is actually narrowing the feed. Decides between the
+  /// "no transactions" and "no results for these filters" empty states.
+  bool get isActive =>
+      category != null || hasQuery || hasAmountRange || hasDateRange;
+
+  /// How many filters are applied — category, search, amount, dates — for
+  /// the badge on the filter button and the chips above the list.
+  ///
+  /// A range counts once whichever of its ends are set: "₹500 to ₹1,000" is
+  /// one filter to the customer, and one chip to remove.
   int get activeCount => [
         category != null,
-        query.trim().isNotEmpty,
-        minPaise != null,
-        maxPaise != null,
-        from != null,
-        to != null,
+        hasQuery,
+        hasAmountRange,
+        hasDateRange,
       ].where((applied) => applied).length;
 
   /// The query string for `GET /transactions`, with unset fields left out.
