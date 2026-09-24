@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/errors/bank_error.dart';
+import '../../../core/motion/motion.dart';
+import '../../../core/security/secure_flag.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/widgets/async_error_view.dart';
 import '../../../core/widgets/empty_view.dart';
@@ -189,27 +191,30 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         ? feed
         : feed.copyWithPrevious(AsyncData<FeedState>(outgoing.state));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Spending'),
-        bottom: _searchBar(context, activeCount),
-      ),
-      body: Column(
-        children: [
-          const MonthSwitcher(warmFeed: true),
-          StaleDataBanner(
-            month: month,
-            onRetry: () => ref.read(feedProvider(feedKey).notifier).refresh(),
-          ),
-          ActiveFiltersRow(filter: filter),
-          Expanded(
-            child: _body(
-              view,
-              feedKey,
-              previousKey: outgoing?.key,
+    return SecureScreen(
+      // Money on screen: kept out of the recents thumbnail and screenshots.
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Spending'),
+          bottom: _searchBar(context, activeCount),
+        ),
+        body: Column(
+          children: [
+            const MonthSwitcher(warmFeed: true),
+            StaleDataBanner(
+              month: month,
+              onRetry: () => ref.read(feedProvider(feedKey).notifier).refresh(),
             ),
-          ),
-        ],
+            ActiveFiltersRow(filter: filter),
+            Expanded(
+              child: _body(
+                view,
+                feedKey,
+                previousKey: outgoing?.key,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -373,7 +378,7 @@ class _FilteringView extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
     // A moving bar is motion; under reduced motion the words stand alone.
-    final animate = !MediaQuery.of(context).disableAnimations;
+    final animate = !reduceMotion(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -587,7 +592,7 @@ class _FeedFooter extends StatelessWidget {
     final Widget child;
     if (state.isLoadingMore) {
       // A spinner is motion; under reduced motion the words stand alone.
-      final animate = !MediaQuery.of(context).disableAnimations;
+      final animate = !reduceMotion(context);
       child = Semantics(
         liveRegion: true,
         child: Row(

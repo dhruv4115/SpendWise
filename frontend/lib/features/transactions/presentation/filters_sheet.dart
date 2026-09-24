@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/bank_error.dart';
+import '../../../core/motion/motion.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/utils/validators.dart';
@@ -40,9 +41,8 @@ class FiltersSheet extends ConsumerStatefulWidget {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      sheetAnimationStyle: MediaQuery.of(context).disableAnimations
-          ? AnimationStyle.noAnimation
-          : null,
+      sheetAnimationStyle:
+          reduceMotion(context) ? AnimationStyle.noAnimation : null,
       builder: (_) => FiltersSheet(initial: initial, month: month),
     );
   }

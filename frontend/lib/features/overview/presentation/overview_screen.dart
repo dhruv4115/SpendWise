@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/errors/bank_error.dart';
+import '../../../core/security/secure_flag.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/widgets/async_error_view.dart';
 import '../../../core/widgets/empty_view.dart';
@@ -31,22 +32,26 @@ class OverviewScreen extends ConsumerWidget {
     final month = ref.watch(monthProvider);
     final monthLabel = monthKeyLabel(month);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Overview'),
-        actions: const [ProfileMenuButton()],
-      ),
-      body: Column(
-        children: [
-          // The month, the two notices about it, and then the month itself.
-          const MonthSwitcher(warmSummary: true),
-          StaleDataBanner(
-            month: month,
-            onRetry: () => ref.read(summaryProvider(month).notifier).refresh(),
-          ),
-          CrunchingIndicator(month: month),
-          Expanded(child: _MonthBody(month: month, monthLabel: monthLabel)),
-        ],
+    return SecureScreen(
+      // Money on screen: kept out of the recents thumbnail and screenshots.
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Overview'),
+          actions: const [ProfileMenuButton()],
+        ),
+        body: Column(
+          children: [
+            // The month, the two notices about it, and then the month itself.
+            const MonthSwitcher(warmSummary: true),
+            StaleDataBanner(
+              month: month,
+              onRetry: () =>
+                  ref.read(summaryProvider(month).notifier).refresh(),
+            ),
+            CrunchingIndicator(month: month),
+            Expanded(child: _MonthBody(month: month, monthLabel: monthLabel)),
+          ],
+        ),
       ),
     );
   }
@@ -144,6 +149,7 @@ class _OverviewBody extends ConsumerWidget {
                 totalLabel: 'Total',
               ),
             (false, false) => SpendDonut(
+                month: data.summary.month,
                 slices: data.slices,
                 // Pushed, so Back returns here. The feed seeds its filter
                 // from the category in the address.

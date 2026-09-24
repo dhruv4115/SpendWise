@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/presentation/lock_screen.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/state/session_provider.dart';
@@ -51,6 +52,12 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: Routes.loginPath,
         name: Routes.loginName,
         builder: (context, state) => const LoginScreen(),
+      ),
+      // Above the shell, like sign-in: a locked app has no tabs.
+      GoRoute(
+        path: Routes.lockPath,
+        name: Routes.lockName,
+        builder: (context, state) => const LockScreen(),
       ),
       // One IndexedStack, four navigators: switching tabs keeps each tab's
       // scroll position and its pushed detail pages, and a detail route opens
@@ -160,9 +167,17 @@ String? _guard(Ref ref, GoRouterState state) {
       if (matched == Routes.loginPath) return null;
       return _locationWithFrom(Routes.loginPath, target);
 
-    case SessionSignedIn():
     case SessionLocked():
-      if (matched == Routes.loginPath || matched == Routes.splashPath) {
+      // The token is still good; the customer just has to prove they are the
+      // one holding the phone. Where they were is carried along, so
+      // unlocking puts them back on it.
+      if (matched == Routes.lockPath) return null;
+      return _locationWithFrom(Routes.lockPath, target);
+
+    case SessionSignedIn():
+      if (matched == Routes.loginPath ||
+          matched == Routes.splashPath ||
+          matched == Routes.lockPath) {
         return target ?? Routes.overviewPath;
       }
       return null;
@@ -171,12 +186,14 @@ String? _guard(Ref ref, GoRouterState state) {
 
 /// The location the customer is actually trying to reach.
 ///
-/// On a real screen that is the current location. On splash or sign-in it is
-/// whatever `from` they were sent there with, which is how the deep link
-/// survives two redirects.
+/// On a real screen that is the current location. On splash, sign-in or the
+/// lock screen it is whatever `from` they were sent there with, which is how
+/// the deep link survives two redirects.
 String? _attemptedLocation(GoRouterState state) {
   final matched = state.matchedLocation;
-  if (matched == Routes.loginPath || matched == Routes.splashPath) {
+  if (matched == Routes.loginPath ||
+      matched == Routes.splashPath ||
+      matched == Routes.lockPath) {
     return _safeFrom(state.uri.queryParameters[Routes.fromQueryParam]);
   }
   final location = state.uri.toString();
@@ -185,14 +202,16 @@ String? _attemptedLocation(GoRouterState state) {
 
 /// Only in-app paths come back from a query parameter: anything with a scheme
 /// or an authority would turn the sign-in screen into an open redirect, and a
-/// `from` pointing at splash or sign-in would loop.
+/// `from` pointing at splash, sign-in or the lock screen would loop.
 String? _safeFrom(String? raw) {
   if (raw == null || raw.isEmpty) return null;
   if (!raw.startsWith('/') || raw.startsWith('//')) return null;
 
   final uri = Uri.tryParse(raw);
   if (uri == null || uri.hasScheme || uri.hasAuthority) return null;
-  if (uri.path == Routes.loginPath || uri.path == Routes.splashPath) {
+  if (uri.path == Routes.loginPath ||
+      uri.path == Routes.splashPath ||
+      uri.path == Routes.lockPath) {
     return null;
   }
 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/errors/bank_error.dart';
+import '../../../core/security/secure_flag.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/widgets/async_error_view.dart';
 import '../../../core/widgets/empty_view.dart';
@@ -54,56 +55,59 @@ class MerchantsScreen extends ConsumerWidget {
         ref.watch(categoriesProvider).valueOrNull ?? const <Category>[];
     final monthLabel = monthKeyLabel(month);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(monthLabel),
-        actions: [
-          IconButton(
-            tooltip: 'Previous month',
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => ref.read(monthProvider.notifier).previous(),
+    return SecureScreen(
+      // Money on screen: kept out of the recents thumbnail and screenshots.
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(monthLabel),
+          actions: [
+            IconButton(
+              tooltip: 'Previous month',
+              icon: const Icon(Icons.chevron_left),
+              onPressed: () => ref.read(monthProvider.notifier).previous(),
+            ),
+            IconButton(
+              tooltip: 'Next month',
+              icon: const Icon(Icons.chevron_right),
+              onPressed: isLatestMonth
+                  ? null
+                  : () => ref.read(monthProvider.notifier).next(),
+            ),
+            _SortButton(
+              sort: sort,
+              onSelected: (choice) =>
+                  ref.read(merchantSortProvider.notifier).set(choice),
+            ),
+          ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: () => _refresh(ref, month),
+          child: merchants.when(
+            loading: () => const SkeletonList(
+              itemCount: 6,
+              label: 'Loading merchants',
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 32),
+            ),
+            error: (error, _) => AsyncErrorView(
+              error: asBankError(error),
+              title: 'We could not load your merchants',
+              onRetry: () => _refresh(ref, month),
+              onSignInAgain: () => ref.read(sessionProvider.notifier).signOut(),
+            ),
+            data: (items) => items.isEmpty
+                ? EmptyView(
+                    icon: Icons.storefront_outlined,
+                    title: 'Nothing spent in $monthLabel',
+                    message: 'Once there are payments in this month, the shops '
+                        'and services behind them are listed here, biggest '
+                        'first.',
+                  )
+                : _MerchantList(
+                    merchants: items,
+                    categories: categories,
+                    sort: sort,
+                  ),
           ),
-          IconButton(
-            tooltip: 'Next month',
-            icon: const Icon(Icons.chevron_right),
-            onPressed: isLatestMonth
-                ? null
-                : () => ref.read(monthProvider.notifier).next(),
-          ),
-          _SortButton(
-            sort: sort,
-            onSelected: (choice) =>
-                ref.read(merchantSortProvider.notifier).set(choice),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => _refresh(ref, month),
-        child: merchants.when(
-          loading: () => const SkeletonList(
-            itemCount: 6,
-            label: 'Loading merchants',
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 32),
-          ),
-          error: (error, _) => AsyncErrorView(
-            error: asBankError(error),
-            title: 'We could not load your merchants',
-            onRetry: () => _refresh(ref, month),
-            onSignInAgain: () => ref.read(sessionProvider.notifier).signOut(),
-          ),
-          data: (items) => items.isEmpty
-              ? EmptyView(
-                  icon: Icons.storefront_outlined,
-                  title: 'Nothing spent in $monthLabel',
-                  message: 'Once there are payments in this month, the shops '
-                      'and services behind them are listed here, biggest '
-                      'first.',
-                )
-              : _MerchantList(
-                  merchants: items,
-                  categories: categories,
-                  sort: sort,
-                ),
         ),
       ),
     );

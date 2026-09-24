@@ -1,11 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/clock.dart';
 import '../../../core/utils/date_format.dart';
 
-/// "Now", as a seam. Everything that asks what month or day it is goes through
-/// here, so a test pins the calendar instead of racing it.
-final Provider<DateTime Function()> clockProvider =
-    Provider<DateTime Function()>((ref) => DateTime.now);
+// The clock moved to core when the app lock came to need it: core must not
+// depend on a feature. Re-exported so the many callers that know it as part
+// of "which month are we on" keep working.
+export '../../../core/utils/clock.dart' show clockProvider;
 
 /// How far back the app looks.
 ///

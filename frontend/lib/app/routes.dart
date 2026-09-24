@@ -11,6 +11,11 @@ abstract final class Routes {
   static const String loginPath = '/login';
   static const String loginName = 'login';
 
+  /// The app, locked. Every route redirects here while the session is
+  /// [SessionLocked], and the way out is the device's own authentication.
+  static const String lockPath = '/lock';
+  static const String lockName = 'lock';
+
   static const String overviewPath = '/overview';
   static const String overviewName = 'overview';
 

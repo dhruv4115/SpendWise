@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../motion/motion.dart';
+
 /// A placeholder block for content that has not arrived yet.
 ///
 /// No shimmer package and no gradient sweep: a slow opacity pulse is cheaper,
@@ -24,7 +26,7 @@ class Skeleton extends StatefulWidget {
 
 class _SkeletonState extends State<Skeleton>
     with SingleTickerProviderStateMixin {
-  static const Duration _period = Duration(milliseconds: 1100);
+  static const Duration _period = Motion.skeletonPulse;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
@@ -35,7 +37,7 @@ class _SkeletonState extends State<Skeleton>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncWithMotionPreference(MediaQuery.of(context).disableAnimations);
+    _syncWithMotionPreference(reduceMotion(context));
   }
 
   void _syncWithMotionPreference(bool disableAnimations) {

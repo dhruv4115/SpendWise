@@ -166,13 +166,91 @@ Notes:
 - Once the list of defines grows, group them into
   `--dart-define-from-file=env/staging.json` instead of repeating flags.
 
+## Release builds
+
+The release build is signed with a real key, shrunk by R8 and obfuscated on
+both sides of the FFI boundary.
+
+```bash
+cd frontend
+flutter build apk --release \
+  --obfuscate --split-debug-info=build/symbols \
+  --dart-define=API_BASE_URL=https://api.spendwise.invalid \
+  --dart-define=APP_ENV=prod
+```
+
+`--obfuscate` renames Dart classes and functions in the AOT snapshot, and
+`--split-debug-info` writes the mapping to `build/symbols` so a crash report
+can be turned back into a stack trace:
+
+```bash
+flutter symbolize -i crash.txt -d build/symbols/app.android-arm64.symbols
+```
+
+**Keep `build/symbols` for every build you ship.** Without the file that
+matches the exact build, its crash reports cannot be read. It must not go in
+the repository — it is the key to the obfuscation.
+
+### Signing
+
+`android/app/build.gradle.kts` reads the release keystore from
+`android/key.properties`, which is gitignored. Copy the example and fill it in:
+
+```bash
+cd frontend/android
+cp key.properties.example key.properties
+keytool -genkey -v -keystore ~/spendwise-release.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias spendwise
+```
+
+Without that file the release build still works — it falls back to the debug
+keys and says so in the Gradle output — so a fresh clone can run
+`flutter run --release`. Such a build is for testing only.
+
+The release build type also sets `isMinifyEnabled` and `isShrinkResources`, so
+R8 strips and renames unused Java/Kotlin code and drops unreferenced
+resources. App-specific keep rules, if any are ever needed, go in
+`android/app/proguard-rules.pro`.
+
+## Security
+
+| Concern | Where it is handled |
+| --- | --- |
+| Session token at rest | `core/security/secure_session_store.dart` — Android KeyStore / iOS keychain (`first_unlock_this_device`), never `SharedPreferences`, never the offline cache. |
+| Token in flight | `AuthInterceptor` attaches it per request; a 401 revokes the session immediately (`UnauthorisedInterceptor`). |
+| Shoulder surfing and screenshots | `core/security/secure_flag.dart` sets Android's `FLAG_SECURE` while any screen showing money or a password field is mounted, which also blanks the app's thumbnail in the recents list. |
+| Walking away with the app open | `core/security/app_lock.dart` locks the session the moment the app leaves the foreground, and asks for the device's biometrics or PIN to come back. Ten seconds of grace, so a permission dialog is not a lock-out. |
+| What gets logged | Method, redacted path, status and traceId — and nothing else. |
+
+### The logging rule
+
+No log line may contain a token, a password, an email address or a full
+transaction, account or customer id. Both the client and the server redact
+path segments that look like ids (`redactPath`), neither ever logs a header or
+a body, and every model's `toString` was written with this in mind — `Session`
+prints its user's name, never its token; `Transaction` prints a category and a
+payment mode, never its id.
+
+Audit (re-run it after any change that adds a log line):
+
+```bash
+cd frontend && grep -rn "print(\|debugPrint\|developer.log" lib
+cd ../backend && grep -rn "console\." src
+grep -rn "String toString()" -A 2 frontend/lib | grep -iE "token|password|email"
+```
+
+Every hit must be one of: the Dio `LoggingInterceptor`, the error mapper's
+debug line, the secure-flag debug assert, or the backend's request and error
+loggers — all four of which redact.
+
 ## Architecture
 
 <!-- Layer diagram, data flow, and the rules each layer enforces. Diagram lives in docs/. -->
 
 ## Profiling evidence
 
-<!-- DevTools timeline captures, jank traces, and before/after measurements. -->
+Method, measurements and the capture procedure: **[docs/profiling.md](docs/profiling.md)**.
+DevTools screenshots live in `docs/profiling/`.
 
 ## Known limitations
 

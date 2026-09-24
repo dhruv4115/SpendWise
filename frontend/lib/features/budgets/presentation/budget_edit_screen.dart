@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/errors/bank_error.dart';
+import '../../../core/security/secure_flag.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/utils/validators.dart';
@@ -75,9 +76,12 @@ class _Frame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: child,
+    return SecureScreen(
+      // Money on screen: kept out of the recents thumbnail and screenshots.
+      child: Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: child,
+      ),
     );
   }
 }

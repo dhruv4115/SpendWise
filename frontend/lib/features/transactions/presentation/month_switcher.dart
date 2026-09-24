@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/motion/motion.dart';
 import '../../../core/utils/date_format.dart';
 import '../../overview/state/summary_provider.dart';
 import '../state/feed_provider.dart';
@@ -41,7 +42,7 @@ class MonthSwitcher extends ConsumerStatefulWidget {
   /// the months either side peek in and the strip reads as swipeable.
   static const double viewportFraction = 0.44;
 
-  static const Duration slide = Duration(milliseconds: 240);
+  static const Duration slide = Motion.page;
 
   @override
   ConsumerState<MonthSwitcher> createState() => _MonthSwitcherState();
@@ -80,7 +81,7 @@ class _MonthSwitcherState extends ConsumerState<MonthSwitcher> {
     final showing = _pages.page?.round() ?? _pages.initialPage;
     if (showing == index) return;
 
-    if (MediaQuery.of(context).disableAnimations) {
+    if (reduceMotion(context)) {
       _pages.jumpToPage(index);
     } else {
       _pages.animateToPage(

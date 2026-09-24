@@ -82,7 +82,11 @@ Future<void> _pumpDonut(
                 padding: const EdgeInsets.all(16),
                 child: SizedBox(
                   width: 360,
-                  child: SpendDonut(slices: slices, onSliceTap: (_) {}),
+                  child: SpendDonut(
+                    month: '2026-09',
+                    slices: slices,
+                    onSliceTap: (_) {},
+                  ),
                 ),
               ),
             ),

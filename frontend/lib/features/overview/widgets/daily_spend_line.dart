@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/motion/motion.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/utils/money.dart';
 import '../domain/month_summary.dart';
@@ -28,7 +29,7 @@ class DailySpendLine extends StatefulWidget {
 }
 
 class _DailySpendLineState extends State<DailySpendLine> {
-  static const Duration _animation = Duration(milliseconds: 300);
+  static const Duration _animation = Motion.lineDraw;
 
   /// Worked out when the days change, not on every build.
   late _Geometry _geometry = _Geometry.of(widget.days);
@@ -49,7 +50,7 @@ class _DailySpendLineState extends State<DailySpendLine> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final scaler = MediaQuery.textScalerOf(context);
-    final animate = !MediaQuery.of(context).disableAnimations;
+    final animate = !reduceMotion(context);
     final geometry = _geometry;
 
     final axisStyle = theme.textTheme.bodySmall?.copyWith(

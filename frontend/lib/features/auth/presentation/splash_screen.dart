@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/motion/motion.dart';
+
 /// Shown for the moment it takes to read the keystore on boot.
 ///
 /// It never decides anything: the router's redirect moves on as soon as the
@@ -13,7 +15,7 @@ class SplashScreen extends StatelessWidget {
     // A spinner is an animation like any other. When the platform asks for
     // reduced motion it is replaced rather than frozen — a stopped spinner
     // reads as a broken app.
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final stillness = reduceMotion(context);
 
     return Scaffold(
       body: Center(
@@ -24,7 +26,7 @@ class SplashScreen extends StatelessWidget {
             children: [
               Text('SpendWise', style: theme.textTheme.headlineSmall),
               const SizedBox(height: 24),
-              if (reduceMotion)
+              if (stillness)
                 Icon(
                   Icons.hourglass_empty,
                   color: theme.colorScheme.onSurfaceVariant,

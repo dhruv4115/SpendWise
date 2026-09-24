@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/errors/bank_error.dart';
+import '../../../core/security/secure_flag.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/utils/money.dart';
 import '../../../core/widgets/async_error_view.dart';
@@ -74,67 +75,71 @@ class BudgetsScreen extends ConsumerWidget {
     final monthLabel = monthKeyLabel(month);
     final rows = budgets.valueOrNull ?? const <BudgetView>[];
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(monthLabel),
-        actions: [
-          IconButton(
-            tooltip: 'Previous month',
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => ref.read(monthProvider.notifier).previous(),
-          ),
-          IconButton(
-            tooltip: 'Next month',
-            icon: const Icon(Icons.chevron_right),
-            onPressed: isLatestMonth
-                ? null
-                : () => ref.read(monthProvider.notifier).next(),
-          ),
-          IconButton(
-            tooltip: 'Add a budget',
-            icon: const Icon(Icons.add),
-            onPressed: () => _add(context, ref, rows),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(budgetsProvider(month).notifier).refresh(),
-        child: budgets.when(
-          loading: () => const _BudgetsSkeleton(),
-          error: (error, _) => AsyncErrorView(
-            error: asBankError(error),
-            title: 'We could not load your budgets',
-            onRetry: () => ref.read(budgetsProvider(month).notifier).refresh(),
-            onSignInAgain: () => ref.read(sessionProvider.notifier).signOut(),
-          ),
-          data: (items) => items.isEmpty
-              ? EmptyView(
-                  icon: Icons.savings_outlined,
-                  title: 'No budgets for $monthLabel',
-                  message: 'Set a limit for a category and this screen will '
-                      'show how much of it is left — and carry the limit on '
-                      'to next month.',
-                  action: FilledButton.icon(
-                    onPressed: () => _add(context, ref, items),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Set your first budget'),
+    return SecureScreen(
+      // Money on screen: kept out of the recents thumbnail and screenshots.
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(monthLabel),
+          actions: [
+            IconButton(
+              tooltip: 'Previous month',
+              icon: const Icon(Icons.chevron_left),
+              onPressed: () => ref.read(monthProvider.notifier).previous(),
+            ),
+            IconButton(
+              tooltip: 'Next month',
+              icon: const Icon(Icons.chevron_right),
+              onPressed: isLatestMonth
+                  ? null
+                  : () => ref.read(monthProvider.notifier).next(),
+            ),
+            IconButton(
+              tooltip: 'Add a budget',
+              icon: const Icon(Icons.add),
+              onPressed: () => _add(context, ref, rows),
+            ),
+          ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: () => ref.read(budgetsProvider(month).notifier).refresh(),
+          child: budgets.when(
+            loading: () => const _BudgetsSkeleton(),
+            error: (error, _) => AsyncErrorView(
+              error: asBankError(error),
+              title: 'We could not load your budgets',
+              onRetry: () =>
+                  ref.read(budgetsProvider(month).notifier).refresh(),
+              onSignInAgain: () => ref.read(sessionProvider.notifier).signOut(),
+            ),
+            data: (items) => items.isEmpty
+                ? EmptyView(
+                    icon: Icons.savings_outlined,
+                    title: 'No budgets for $monthLabel',
+                    message: 'Set a limit for a category and this screen will '
+                        'show how much of it is left — and carry the limit on '
+                        'to next month.',
+                    action: FilledButton.icon(
+                      onPressed: () => _add(context, ref, items),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Set your first budget'),
+                    ),
+                  )
+                : ListView.separated(
+                    // Pull-to-refresh works however short the list is.
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final budget = items[index];
+                      return BudgetCard(
+                        budget: budget,
+                        categoryName: categories.nameOf(budget.category),
+                        onTap: () => _open(context, ref, budget.category),
+                      );
+                    },
                   ),
-                )
-              : ListView.separated(
-                  // Pull-to-refresh works however short the list is.
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final budget = items[index];
-                    return BudgetCard(
-                      budget: budget,
-                      categoryName: categories.nameOf(budget.category),
-                      onTap: () => _open(context, ref, budget.category),
-                    );
-                  },
-                ),
+          ),
         ),
       ),
     );
