@@ -69,6 +69,7 @@ class FakeApi implements HttpClientAdapter {
     Map<String, String> headers = const {},
     Duration? delay,
     int? times,
+    Map<String, String>? query,
   }) {
     _add(
       method,
@@ -80,6 +81,7 @@ class FakeApi implements HttpClientAdapter {
         headers: headers,
         delay: delay,
         remaining: times,
+        query: query,
       ),
     );
   }
@@ -95,6 +97,7 @@ class FakeApi implements HttpClientAdapter {
     String traceId = '11111111-2222-3333-4444-555555555555',
     Duration? delay,
     int? times,
+    Map<String, String>? query,
   }) {
     _add(
       method,
@@ -112,6 +115,7 @@ class FakeApi implements HttpClientAdapter {
         contentType: Headers.jsonContentType,
         delay: delay,
         remaining: times,
+        query: query,
       ),
     );
   }
@@ -136,6 +140,7 @@ class FakeApi implements HttpClientAdapter {
     int status = 503,
     String code = 'UPSTREAM_UNAVAILABLE',
     String message = 'The bank is unavailable.',
+    Map<String, String>? query,
   }) {
     _addFirst(
       method,
@@ -152,6 +157,7 @@ class FakeApi implements HttpClientAdapter {
         }),
         contentType: Headers.jsonContentType,
         remaining: 1,
+        query: query,
       ),
     );
   }
@@ -160,7 +166,7 @@ class FakeApi implements HttpClientAdapter {
   /// server acted on it — and then fails with a receive timeout, as if the
   /// response was lost on the way back. The case an idempotency key exists
   /// for: the client cannot tell whether its change landed.
-  void timeoutOnce(String method, String path) {
+  void timeoutOnce(String method, String path, {Map<String, String>? query}) {
     _addFirst(
       method,
       path,
@@ -170,6 +176,7 @@ class FakeApi implements HttpClientAdapter {
         contentType: Headers.jsonContentType,
         timesOut: true,
         remaining: 1,
+        query: query,
       ),
     );
   }
@@ -190,9 +197,24 @@ class FakeApi implements HttpClientAdapter {
   }
 
   /// Every request sent to [path], in order.
-  List<RecordedRequest> requestsFor(String method, String path) => requests
-      .where((r) => r.method == method.toUpperCase() && r.path == path)
-      .toList(growable: false);
+  ///
+  /// [query] narrows it to the requests whose query parameters contain those
+  /// pairs — `requestsFor('GET', '/transactions', query: {'month': '2026-09'})`
+  /// leaves out the months the app fetched to have them ready.
+  List<RecordedRequest> requestsFor(
+    String method,
+    String path, {
+    Map<String, String>? query,
+  }) =>
+      requests
+          .where(
+            (r) =>
+                r.method == method.toUpperCase() &&
+                r.path == path &&
+                (query == null ||
+                    query.entries.every((e) => r.query[e.key] == e.value)),
+          )
+          .toList(growable: false);
 
   void reset() {
     requests.clear();
@@ -227,7 +249,7 @@ class FakeApi implements HttpClientAdapter {
       ),
     );
 
-    final route = _take(options.method, uri.path);
+    final route = _take(options.method, uri.path, uri.queryParameters);
     if (route == null) {
       throw StateError(
         'FakeApi has no route for ${options.method.toUpperCase()} ${uri.path}. '
@@ -254,16 +276,23 @@ class FakeApi implements HttpClientAdapter {
     );
   }
 
-  _Route? _take(String method, String path) {
+  /// The first registered route that matches, which for a route pinned to a
+  /// query means the first one asking for those parameters. A route with no
+  /// query answers anything, as it always has.
+  _Route? _take(String method, String path, Map<String, String> query) {
     final routes = _routes[_key(method, path)];
     if (routes == null || routes.isEmpty) return null;
 
-    final route = routes.first;
-    if (route.remaining == null) return route;
+    for (var i = 0; i < routes.length; i++) {
+      final route = routes[i];
+      if (!route.matches(query)) continue;
+      if (route.remaining == null) return route;
 
-    route.remaining = route.remaining! - 1;
-    if (route.remaining! <= 0) routes.removeAt(0);
-    return route;
+      route.remaining = route.remaining! - 1;
+      if (route.remaining! <= 0) routes.removeAt(i);
+      return route;
+    }
+    return null;
   }
 
   Future<Object?> _readBody(
@@ -299,6 +328,7 @@ class _Route {
     this.delay,
     this.remaining,
     this.timesOut = false,
+    this.query,
   });
 
   final int status;
@@ -308,6 +338,15 @@ class _Route {
   final Duration? delay;
   final bool timesOut;
 
+  /// Query parameters this route insists on. Null answers any request.
+  final Map<String, String>? query;
+
   /// Null means "answer for ever".
   int? remaining;
+
+  bool matches(Map<String, String> requested) {
+    final wanted = query;
+    if (wanted == null) return true;
+    return wanted.entries.every((e) => requested[e.key] == e.value);
+  }
 }

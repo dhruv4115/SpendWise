@@ -10,6 +10,7 @@ final DateFormat _dayMonth = DateFormat('d MMM');
 final DateFormat _dayMonthYear = DateFormat('d MMM y');
 final DateFormat _monthLabel = DateFormat('MMMM y');
 final DateFormat _dateTime = DateFormat('EEE, d MMM y, h:mm a');
+final DateFormat _time = DateFormat('h:mm a');
 
 /// `DateTime(2026, 9, 22)` -> `'2026-09'`, using local date components.
 String monthKey(DateTime date) {
@@ -93,6 +94,21 @@ String dateRangeLabel(DateTime? from, DateTime? to) {
     (final DateTime start, final DateTime end) =>
       '${shortDateLabel(start)} – ${shortDateLabel(end)}',
   };
+}
+
+/// When a saved copy was written, as the stale-data banner says it: `2:14 pm`
+/// today, `yesterday at 2:14 pm`, or `12 Sep at 2:14 pm` before that.
+///
+/// Lower-case am/pm, and never a bare time for something saved days ago — a
+/// customer reading "2:14 pm" would assume today.
+String savedAtLabel(DateTime at, {DateTime? now}) {
+  final time = _time.format(at).toLowerCase();
+  final today = dateOnly(now ?? DateTime.now());
+  final days = today.difference(dateOnly(at)).inDays;
+
+  if (days == 0) return time;
+  if (days == 1) return 'yesterday at $time';
+  return '${shortDateLabel(at)} at $time';
 }
 
 /// A transaction's moment in full, for its detail screen:

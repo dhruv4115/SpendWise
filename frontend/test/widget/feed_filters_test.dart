@@ -16,6 +16,9 @@ import '../helpers/transactions.dart';
 
 const String _path = '/transactions';
 
+/// The month the feed opens on.
+const Map<String, String> _thisMonth = {'month': '2026-09'};
+
 /// Midday on 23 Sep 2026, so the feed opens on September.
 final DateTime _now = DateTime(2026, 9, 23, 12);
 
@@ -55,7 +58,7 @@ Map<String, Object?> _groceries() => pageWire([_bigBasket, _dmart]);
 FakeApi _api({Map<String, Object?>? filtered, Duration? filteredDelay}) {
   return FakeApi()
     ..on('GET', '/categories', body: categoriesWire())
-    ..on('GET', _path, times: 1, body: _everything())
+    ..on('GET', _path, times: 1, query: _thisMonth, body: _everything())
     ..on('GET', _path, body: filtered ?? _groceries(), delay: filteredDelay);
 }
 
@@ -111,8 +114,10 @@ String _searchText(WidgetTester tester) =>
 
 Finder _chip(String label) => find.widgetWithText(InputChip, label);
 
+/// Every request the feed made for the month under test — and none of the
+/// ones the month strip made to have its neighbours ready.
 List<RecordedRequest> _feedRequests(FakeApi api) =>
-    api.requestsFor('GET', _path);
+    api.requestsFor('GET', _path, query: _thisMonth);
 
 void main() {
   group('filters survive navigation', () {
@@ -233,8 +238,15 @@ void main() {
 
       expect(_searchText(tester), isEmpty);
       expect(find.byType(InputChip), findsNothing);
-      expect(_feedRequests(api).last.query.containsKey('q'), isFalse);
       expect(find.byTooltip('Filters'), findsOneWidget);
+      // The unfiltered month is one of the three kept resident, so clearing
+      // the search returns to rows that never left memory.
+      expect(find.text('Swiggy'), findsOneWidget);
+      expect(
+        _feedRequests(api),
+        hasLength(2),
+        reason: 'one unfiltered page and one filtered one, and no more',
+      );
     });
   });
 
@@ -299,8 +311,8 @@ void main() {
       _usePhoneScreen(tester);
       final api = FakeApi()
         ..on('GET', '/categories', body: categoriesWire())
-        ..on('GET', _path, times: 1, body: _everything())
-        ..on('GET', _path, times: 1, body: pageWire([]))
+        ..on('GET', _path, times: 1, query: _thisMonth, body: _everything())
+        ..on('GET', _path, times: 1, query: _thisMonth, body: pageWire([]))
         ..on('GET', _path, body: _everything());
       final harness = await _openFeed(tester, api);
 
@@ -320,7 +332,13 @@ void main() {
       );
       expect(find.byType(InputChip), findsNothing);
       expect(find.text('Swiggy'), findsOneWidget);
-      expect(_feedRequests(api).last.query.containsKey('category'), isFalse);
+      // Back to rows that were still in memory: the unfiltered month is held
+      // open, so clearing a filter costs nothing.
+      expect(
+        _feedRequests(api),
+        hasLength(2),
+        reason: 'one unfiltered page and one filtered one, and no more',
+      );
     });
 
     testWidgets('an empty month with no filter says so instead', (

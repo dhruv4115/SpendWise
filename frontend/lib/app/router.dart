@@ -7,6 +7,7 @@ import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/state/session_provider.dart';
 import '../features/budgets/presentation/budget_edit_screen.dart';
 import '../features/budgets/presentation/budgets_screen.dart';
+import '../features/merchants/presentation/merchant_screen.dart';
 import '../features/merchants/presentation/merchants_screen.dart';
 import '../features/overview/presentation/overview_screen.dart';
 import '../features/transactions/presentation/feed_screen.dart';
@@ -121,7 +122,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: Routes.idSegment,
                     name: Routes.merchantDetailName,
-                    builder: (context, state) => MerchantDetailScreen(
+                    builder: (context, state) => MerchantScreen(
                       merchantKey: state.pathParameters[Routes.idParam] ?? '',
                     ),
                   ),

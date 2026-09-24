@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/cache/offline_cache.dart';
 import '../data/auth_repository.dart';
 import '../domain/session.dart';
 
@@ -124,6 +125,10 @@ class SessionNotifier extends Notifier<SessionState> {
 
   Future<void> _forget() async {
     await ref.read(authRepositoryProvider).logout();
+    // The saved months go with the session. They are one customer's
+    // statements, and the next person to sign in on this phone must not be
+    // handed them from the cache while their own are still loading.
+    await ref.read(offlineCacheProvider).clear();
     _set(const SessionSignedOut());
   }
 

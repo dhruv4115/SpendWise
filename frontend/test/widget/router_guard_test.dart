@@ -210,8 +210,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Nothing here asks for the 401: the feed's own first-page fetch gets
-      // it, and the guard does the rest.
-      expect(api.requestsFor('GET', '/transactions'), hasLength(1));
+      // it — as does the month strip's fetch for the month beside it — and
+      // the guard does the rest. One fetch each, and no retry storm after.
+      final months = api
+          .requestsFor('GET', '/transactions')
+          .map((request) => request.query['month'])
+          .toList();
+      expect(months, isNotEmpty);
+      expect(months.toSet(), hasLength(months.length));
       expect(harness.location, '/login?from=%2Ftransactions');
       expect(harness.store.stored, isNull);
     });

@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/cache/offline_cache.dart';
+import '../../../core/cache/stale_data.dart';
 import '../../../core/errors/bank_error.dart';
 import '../data/transaction_repository.dart';
 import '../domain/transaction.dart';
 import '../domain/transaction_filter.dart';
 import '../domain/transaction_page.dart';
+import 'month_provider.dart';
 
 /// Distinguishes "leave the field alone" from "clear it" in the copyWiths.
 const Object _unset = Object();
@@ -138,20 +143,86 @@ class FeedNotifier extends AutoDisposeFamilyAsyncNotifier<FeedState, FeedKey> {
   /// exists, and is dropped when it lands.
   int _generation = 0;
 
+  /// Whether this feed has been served once already. The cache is for opening
+  /// a month, not for re-reading one: a pull-to-refresh, a Retry and the
+  /// invalidation after a recategorisation all mean "ask the server", and
+  /// answering them from the page this provider saved a moment ago would make
+  /// all three do nothing.
+  bool _opened = false;
+
   @override
   Future<FeedState> build(FeedKey key) async {
+    final coldStart = !_opened;
+    _opened = true;
     final registry = ref.watch(feedRegistryProvider).._add(key);
     ref.onDispose(() {
       _generation++;
       registry._remove(key);
     });
+    // Only the plain month feed is held open. Keeping every filter a customer
+    // has tried would make memory grow with their curiosity, and a filtered
+    // list is cheap to ask for again.
+    if (!key.filter.isActive &&
+        ref.watch(residentMonthsProvider).contains(key.month)) {
+      ref.keepAlive();
+    }
 
-    final page = await ref.watch(transactionRepositoryProvider).fetchPage(
-          month: key.month,
-          filter: key.filter,
-          limit: pageSize,
-        );
-    return FeedState.firstPage(page);
+    final repository = ref.watch(transactionRepositoryProvider);
+    if (key.filter.isActive) {
+      final page = await repository.fetchPage(
+        month: key.month,
+        filter: key.filter,
+        limit: pageSize,
+      );
+      return FeedState.firstPage(page);
+    }
+
+    // Cache first, then the network: a month looked at in the last day is on
+    // screen in the frame it is asked for.
+    final saved =
+        coldStart ? await repository.cachedFirstPage(key.month) : null;
+    if (saved != null && saved.isFresh) {
+      final shown = FeedState.firstPage(saved.value);
+      unawaited(_refreshInBackground(saved, shown));
+      return shown;
+    }
+
+    final result = await repository.refreshFirstPage(key.month);
+    _report(result);
+    return FeedState.firstPage(result.value);
+  }
+
+  /// The refresh behind a saved page that is already on screen.
+  ///
+  /// It replaces the list only while the list is still that saved page.
+  /// Once more pages have been loaded, or a row has been recategorised,
+  /// swapping in page one would pull rows out from under the customer's
+  /// thumb; the next pull-to-refresh picks the newer copy up instead.
+  Future<void> _refreshInBackground(
+    Cached<TransactionPage> saved,
+    FeedState shown,
+  ) async {
+    final generation = _generation;
+    final hold = ref.keepAlive();
+    try {
+      final result = await ref
+          .read(transactionRepositoryProvider)
+          .refreshFirstPage(arg.month);
+      if (generation != _generation) return;
+      _report(result);
+      if (!identical(state.valueOrNull?.items, shown.items)) return;
+      state = AsyncData(FeedState.firstPage(result.value));
+    } on BankError {
+      if (generation == _generation) _report(saved.asStale());
+    } finally {
+      hold.close();
+    }
+  }
+
+  void _report(Cached<TransactionPage> result) {
+    ref
+        .read(staleDataProvider(arg.month).notifier)
+        .report(transactionsSource, result.isStale ? result.savedAt : null);
   }
 
   /// Fetches the next page and appends it.

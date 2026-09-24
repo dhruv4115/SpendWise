@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:spendwise/core/cache/offline_cache.dart';
 import 'package:spendwise/core/errors/bank_error.dart';
 import 'package:spendwise/core/network/api_client.dart';
 import 'package:spendwise/core/security/secure_session_store.dart';
@@ -9,6 +10,7 @@ import 'package:spendwise/features/auth/state/session_provider.dart';
 
 import '../helpers/container.dart';
 import '../helpers/fake_api.dart';
+import '../helpers/fake_cache.dart';
 import '../helpers/fake_session_store.dart';
 
 void main() {
@@ -95,6 +97,31 @@ void main() {
       expect(container.read(sessionProvider), const SessionSignedOut());
       expect(store.clearCount, 1);
       expect(store.stored, isNull);
+    });
+
+    test('signing out takes the saved months with it', () async {
+      final saved = FakeOfflineCache()
+        ..seed(summaryCacheKey('2026-09'), const {'totalPaise': 1})
+        ..seed(transactionsCacheKey('2026-09'), const {'items': <Object>[]});
+      final container = makeContainer(
+        cache: saved,
+        overrides: [
+          sessionStoreProvider.overrideWithValue(
+            FakeSessionStore(session: testSession),
+          ),
+          httpClientAdapterProvider.overrideWithValue(FakeApi()),
+        ],
+      );
+      readAndKeepAlive(container, sessionProvider);
+      await container.read(sessionProvider.notifier).restore();
+
+      await container.read(sessionProvider.notifier).signOut();
+
+      // One customer's statements must not be handed to the next person to
+      // sign in on this phone.
+      expect(await saved.months(), isEmpty);
+      expect(await saved.read(summaryCacheKey('2026-09')), isNull);
+      expect(await saved.read(transactionsCacheKey('2026-09')), isNull);
     });
 
     test('lock keeps the session and unlock gives it back', () async {

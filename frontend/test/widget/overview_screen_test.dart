@@ -10,6 +10,7 @@ import 'package:spendwise/core/widgets/async_error_view.dart';
 import 'package:spendwise/core/widgets/empty_view.dart';
 import 'package:spendwise/features/overview/presentation/overview_screen.dart';
 import 'package:spendwise/features/overview/state/overview_provider.dart';
+import 'package:spendwise/features/overview/state/summary_provider.dart';
 import 'package:spendwise/features/overview/widgets/chart_table_view.dart';
 import 'package:spendwise/features/overview/widgets/daily_spend_line.dart';
 import 'package:spendwise/features/overview/widgets/spend_donut.dart';
@@ -27,6 +28,21 @@ import '../helpers/transactions.dart';
 
 const String _month = '2026-09';
 final DateTime _now = DateTime(2026, 9, 23, 12);
+
+/// The month under test. Requests are counted for it alone: the month strip
+/// also fetches the neighbouring months so a swipe onto one is instant.
+const Map<String, String> _thisMonth = {'month': _month};
+
+/// The page's own scrollable: the outermost one under the refresh indicator.
+///
+/// "The scrollable" stopped being unambiguous once the month strip became a
+/// PageView, and a table of figures scrolls sideways inside the page as well.
+final Finder _pageScrollable = find
+    .descendant(
+      of: find.byType(RefreshIndicator),
+      matching: find.byType(Scrollable),
+    )
+    .first;
 
 /// A server with September's summary, the categories, and a feed whose
 /// first page is not its last — so the Overview shows the server's numbers.
@@ -87,7 +103,7 @@ void main() {
     testWidgets('a failure explains itself, and Retry loads the month', (
       tester,
     ) async {
-      final api = _api()..failOnce('GET', '/summary');
+      final api = _api()..failOnce('GET', '/summary', query: _thisMonth);
       await _open(tester, api);
 
       expect(find.byType(AsyncErrorView), findsOneWidget);
@@ -99,7 +115,8 @@ void main() {
 
       expect(find.byType(AsyncErrorView), findsNothing);
       expect(find.byType(SummaryHeaderCard), findsOneWidget);
-      expect(api.requestsFor('GET', '/summary'), hasLength(2));
+      expect(
+          api.requestsFor('GET', '/summary', query: _thisMonth), hasLength(2));
     });
 
     testWidgets('the header, the donut and the line', (tester) async {
@@ -119,7 +136,11 @@ void main() {
       expect(find.text('Other'), findsOneWidget);
       expect(find.text('Health'), findsNothing, reason: 'folded into Other');
 
-      await tester.scrollUntilVisible(find.byType(DailySpendLine), 300);
+      await tester.scrollUntilVisible(
+        find.byType(DailySpendLine),
+        300,
+        scrollable: _pageScrollable,
+      );
       expect(find.byType(DailySpendLine), findsOneWidget);
       // Each chart repaints on its own.
       for (final chart in [PieChart, LineChart]) {
@@ -148,7 +169,8 @@ void main() {
 
       await tester.tap(find.text('Refresh'));
       await tester.pumpAndSettle();
-      expect(api.requestsFor('GET', '/summary'), hasLength(2));
+      expect(
+          api.requestsFor('GET', '/summary', query: _thisMonth), hasLength(2));
     });
   });
 
@@ -197,7 +219,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('9 Sep'),
         300,
-        scrollable: find.byType(Scrollable).first,
+        scrollable: _pageScrollable,
       );
       expect(find.byType(DailySpendLine), findsNothing);
       final dayTable = find.ancestor(
@@ -236,7 +258,10 @@ void main() {
       expect(harness.location, '/transactions?category=food');
       expect(find.byType(FeedScreen), findsOneWidget);
       expect(
-        api.requestsFor('GET', '/transactions').last.query['category'],
+        api
+            .requestsFor('GET', '/transactions', query: _thisMonth)
+            .last
+            .query['category'],
         'food',
       );
       expect(find.widgetWithText(InputChip, 'Food & Dining'), findsOneWidget);
@@ -288,7 +313,8 @@ void main() {
       tester,
     ) async {
       final api = FakeApi()
-        ..on('GET', '/summary', times: 1, body: septemberWire())
+        ..on('GET', '/summary',
+            times: 1, query: _thisMonth, body: septemberWire())
         ..respondAfter('GET', '/summary', const Duration(seconds: 2),
             body: summaryWire(
               byCategory: const {'food': 100000},
@@ -311,7 +337,8 @@ void main() {
 
       // Mid-refresh: the old month stays up under the spinner — no
       // skeleton flash.
-      expect(api.requestsFor('GET', '/summary'), hasLength(2));
+      expect(
+          api.requestsFor('GET', '/summary', query: _thisMonth), hasLength(2));
       expect(find.bySemanticsLabel('Loading overview'), findsNothing);
       expect(find.text('₹10,900.00'), findsOneWidget);
 
@@ -329,7 +356,50 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('August 2026'), findsOneWidget);
-      expect(api.requestsFor('GET', '/summary').last.query['month'], '2026-08');
+      expect(
+        api.requestsFor('GET', '/summary', query: const {'month': '2026-08'}),
+        isNotEmpty,
+      );
+    });
+  });
+
+  group('a month too big to add up in place', () {
+    testWidgets('says so, and how many rows, while the isolate folds them', (
+      tester,
+    ) async {
+      _usePhoneScreen(tester);
+      final harness = routedApp(
+        _api(),
+        store: FakeSessionStore(session: testSession),
+        initialLocation: Routes.overviewPath,
+        overrides: [
+          clockProvider.overrideWithValue(() => _now),
+          // Standing in for a month of 5,203 rows on its way through
+          // compute(): what matters here is what the screen says while that
+          // is happening, not how long an isolate takes.
+          crunchingProvider(_month).overrideWithValue(5203),
+        ],
+      );
+
+      await tester.pumpWidget(harness.app);
+      // Pumped frame by frame rather than settled: the little spinner turns
+      // for as long as the work lasts, so there is nothing to settle into.
+      for (var frame = 0; frame < 8; frame++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      expect(find.text('Crunching 5,203 transactions…'), findsOneWidget);
+      // The figures underneath are the server's in the meantime, rather than
+      // a spinner over a blank screen.
+      expect(find.byType(SummaryHeaderCard), findsOneWidget);
+      expect(find.byType(SpendDonut), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('an ordinary month says nothing at all', (tester) async {
+      await _open(tester, _api());
+
+      expect(find.textContaining('Crunching'), findsNothing);
     });
   });
 
@@ -348,16 +418,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 
-      await tester.scrollUntilVisible(find.byType(DailySpendLine), 300);
+      await tester.scrollUntilVisible(
+        find.byType(DailySpendLine),
+        300,
+        scrollable: _pageScrollable,
+      );
       expect(tester.takeException(), isNull);
 
-      await tester.scrollUntilVisible(_tablesSwitch, -300);
+      await tester.scrollUntilVisible(
+        _tablesSwitch,
+        -300,
+        scrollable: _pageScrollable,
+      );
       await tester.tap(_tablesSwitch);
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
         find.text('Amounts by day'),
         400,
-        scrollable: find.byType(Scrollable).first,
+        scrollable: _pageScrollable,
       );
       expect(tester.takeException(), isNull);
     });

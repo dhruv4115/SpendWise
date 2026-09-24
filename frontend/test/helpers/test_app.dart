@@ -4,11 +4,13 @@ import 'package:spendwise/app/app.dart';
 import 'package:spendwise/app/router.dart';
 import 'package:spendwise/app/routes.dart';
 import 'package:spendwise/app/theme.dart';
+import 'package:spendwise/core/cache/offline_cache.dart';
 import 'package:spendwise/core/network/api_client.dart';
 import 'package:spendwise/core/security/secure_session_store.dart';
 
 import 'container.dart';
 import 'fake_api.dart';
+import 'fake_cache.dart';
 import 'fake_session_store.dart';
 
 /// Wraps a widget in the same scope and theme the real app gives it, so a
@@ -25,9 +27,15 @@ Widget testApp(
   List<Override> overrides = const [],
   ThemeMode themeMode = ThemeMode.light,
   NavigatorObserver? navigatorObserver,
+  OfflineCache? cache,
 }) {
   return ProviderScope(
-    overrides: overrides,
+    // In-memory and empty unless the test says otherwise. The real cache
+    // asks the platform for a documents directory, which no widget test has.
+    overrides: [
+      offlineCacheProvider.overrideWithValue(cache ?? FakeOfflineCache()),
+      ...overrides,
+    ],
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
@@ -71,9 +79,11 @@ TestHarness routedApp(
   FakeSessionStore? store,
   String initialLocation = Routes.splashPath,
   List<Override> overrides = const [],
+  OfflineCache? cache,
 }) {
   final sessionStore = store ?? FakeSessionStore();
   final container = makeContainer(
+    cache: cache,
     overrides: [
       sessionStoreProvider.overrideWithValue(sessionStore),
       httpClientAdapterProvider.overrideWithValue(api),

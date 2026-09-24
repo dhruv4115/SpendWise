@@ -45,17 +45,32 @@ class CategoryChoice {
 /// Tapping a tile *is* the commit — there is no Save button, which is what
 /// keeps a recategorisation to two taps. So the "whole merchant" switch sits
 /// above the tiles, where it is read before the choice rather than after.
+///
+/// With [lockToMerchant] the switch is not offered: the sheet was opened from
+/// the merchant's own screen, where changing one payment of theirs is not
+/// what was asked for. The line above the tiles says so instead.
 class CategorySheet extends ConsumerStatefulWidget {
-  const CategorySheet({super.key, required this.transaction});
+  const CategorySheet({
+    super.key,
+    required this.transaction,
+    this.lockToMerchant = false,
+  });
 
+  /// The transaction being recategorised. With [lockToMerchant] it stands for
+  /// its whole merchant, and is the row the request is addressed to.
   final Transaction transaction;
+
+  /// Whether the choice always applies to every transaction of this
+  /// merchant.
+  final bool lockToMerchant;
 
   /// Completes with the choice, or null when the sheet is dismissed or the
   /// pick would change nothing.
   static Future<CategoryChoice?> show(
     BuildContext context,
-    Transaction transaction,
-  ) {
+    Transaction transaction, {
+    bool lockToMerchant = false,
+  }) {
     return showModalBottomSheet<CategoryChoice>(
       context: context,
       // Over the navigation bar too: this is a decision, not part of the tab.
@@ -63,7 +78,10 @@ class CategorySheet extends ConsumerStatefulWidget {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (_) => CategorySheet(transaction: transaction),
+      builder: (_) => CategorySheet(
+        transaction: transaction,
+        lockToMerchant: lockToMerchant,
+      ),
     );
   }
 
@@ -78,18 +96,19 @@ class _CategorySheetState extends ConsumerState<CategorySheet> {
   /// it as well.
   bool _picked = false;
 
+  bool get _merchantWide => widget.lockToMerchant || _applyToMerchant;
+
   void _pick(String category) {
     if (_picked) return;
     _picked = true;
 
-    final unchanged =
-        category == widget.transaction.category && !_applyToMerchant;
+    final unchanged = category == widget.transaction.category && !_merchantWide;
     Navigator.of(context).pop(
       unchanged
           ? null
           : CategoryChoice(
               category: category,
-              applyToMerchant: _applyToMerchant,
+              applyToMerchant: _merchantWide,
             ),
     );
   }
@@ -124,8 +143,12 @@ class _CategorySheetState extends ConsumerState<CategorySheet> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${txn.merchantName} · '
-                    '${formatSignedPaise(txn.amountPaise)}',
+                    // One payment's amount would misdescribe a change that
+                    // moves every payment this merchant has ever taken.
+                    widget.lockToMerchant
+                        ? txn.merchantName
+                        : '${txn.merchantName} · '
+                            '${formatSignedPaise(txn.amountPaise)}',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -134,14 +157,26 @@ class _CategorySheetState extends ConsumerState<CategorySheet> {
               ),
             ),
             const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-              value: _applyToMerchant,
-              onChanged: (value) => setState(() => _applyToMerchant = value),
-              title: Text('Also apply to all ${txn.merchantName} transactions'),
-              subtitle:
-                  const Text('Past ones now, and new ones as they arrive.'),
-            ),
+            if (widget.lockToMerchant)
+              // Not a switch that happens to be on: there is no choice to
+              // make here, and a disabled control would only invite one.
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                leading: const Icon(Icons.storefront_outlined),
+                title: Text('Applies to all ${txn.merchantName} transactions'),
+                subtitle:
+                    const Text('Past ones now, and new ones as they arrive.'),
+              )
+            else
+              SwitchListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                value: _applyToMerchant,
+                onChanged: (value) => setState(() => _applyToMerchant = value),
+                title:
+                    Text('Also apply to all ${txn.merchantName} transactions'),
+                subtitle:
+                    const Text('Past ones now, and new ones as they arrive.'),
+              ),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),

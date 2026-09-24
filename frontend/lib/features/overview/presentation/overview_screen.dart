@@ -8,12 +8,15 @@ import '../../../core/utils/date_format.dart';
 import '../../../core/widgets/async_error_view.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/stale_banner.dart';
 import '../../auth/state/session_provider.dart';
+import '../../transactions/presentation/month_switcher.dart';
 import '../../transactions/state/month_provider.dart';
 import '../domain/overview_data.dart';
 import '../state/overview_provider.dart';
 import '../state/summary_provider.dart';
 import '../widgets/chart_table_view.dart';
+import '../widgets/crunching_indicator.dart';
 import '../widgets/daily_spend_line.dart';
 import '../widgets/spend_donut.dart';
 import '../widgets/summary_header_card.dart';
@@ -26,54 +29,64 @@ class OverviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final month = ref.watch(monthProvider);
-    final isLatestMonth = month == ref.watch(latestMonthProvider);
-    final overview = ref.watch(overviewProvider(month));
     final monthLabel = monthKeyLabel(month);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(monthLabel),
-        actions: [
-          IconButton(
-            tooltip: 'Previous month',
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => ref.read(monthProvider.notifier).previous(),
+        title: const Text('Overview'),
+        actions: const [ProfileMenuButton()],
+      ),
+      body: Column(
+        children: [
+          // The month, the two notices about it, and then the month itself.
+          const MonthSwitcher(warmSummary: true),
+          StaleDataBanner(
+            month: month,
+            onRetry: () => ref.read(summaryProvider(month).notifier).refresh(),
           ),
-          IconButton(
-            tooltip: 'Next month',
-            icon: const Icon(Icons.chevron_right),
-            onPressed: isLatestMonth
-                ? null
-                : () => ref.read(monthProvider.notifier).next(),
-          ),
-          const ProfileMenuButton(),
+          CrunchingIndicator(month: month),
+          Expanded(child: _MonthBody(month: month, monthLabel: monthLabel)),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(summaryProvider(month).notifier).refresh(),
-        child: overview.when(
-          loading: () => const _OverviewSkeleton(),
-          error: (error, _) => AsyncErrorView(
-            error: asBankError(error),
-            title: 'We could not load your overview',
-            onRetry: () => ref.invalidate(summaryProvider(month)),
-            onSignInAgain: () => ref.read(sessionProvider.notifier).signOut(),
-          ),
-          data: (data) => data.isEmpty
-              ? EmptyView(
-                  icon: Icons.insights_outlined,
-                  title: 'Nothing spent in $monthLabel',
-                  message: 'Once payments or refunds land in this month, '
-                      'where the money went will show up here.',
-                  action: OutlinedButton.icon(
-                    onPressed: () =>
-                        ref.read(summaryProvider(month).notifier).refresh(),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Refresh'),
-                  ),
-                )
-              : _OverviewBody(data: data, monthLabel: monthLabel),
+    );
+  }
+}
+
+/// One month's charts, with its three states.
+class _MonthBody extends ConsumerWidget {
+  const _MonthBody({required this.month, required this.monthLabel});
+
+  final String month;
+  final String monthLabel;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overview = ref.watch(overviewProvider(month));
+
+    return RefreshIndicator(
+      onRefresh: () => ref.read(summaryProvider(month).notifier).refresh(),
+      child: overview.when(
+        loading: () => const _OverviewSkeleton(),
+        error: (error, _) => AsyncErrorView(
+          error: asBankError(error),
+          title: 'We could not load your overview',
+          onRetry: () => ref.invalidate(summaryProvider(month)),
+          onSignInAgain: () => ref.read(sessionProvider.notifier).signOut(),
         ),
+        data: (data) => data.isEmpty
+            ? EmptyView(
+                icon: Icons.insights_outlined,
+                title: 'Nothing spent in $monthLabel',
+                message: 'Once payments or refunds land in this month, '
+                    'where the money went will show up here.',
+                action: OutlinedButton.icon(
+                  onPressed: () =>
+                      ref.read(summaryProvider(month).notifier).refresh(),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh'),
+                ),
+              )
+            : _OverviewBody(data: data, monthLabel: monthLabel),
       ),
     );
   }

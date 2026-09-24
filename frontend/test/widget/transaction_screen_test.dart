@@ -128,8 +128,11 @@ void main() {
       expect(find.text('Food & Dining'), findsNothing);
       expect(_feedCategory(harness, 'txn_s1'), 'groceries');
       expect(_feedCategory(harness, 'txn_s2'), 'food');
-      expect(api.requestsFor('GET', _feedPath), hasLength(1),
-          reason: 'the feed is patched, not reloaded');
+      expect(
+        api.requestsFor('GET', _feedPath, query: const {'month': '2026-09'}),
+        hasLength(1),
+        reason: 'the feed is patched, not reloaded',
+      );
 
       final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(find.text('Moved to Groceries.'), findsOneWidget);

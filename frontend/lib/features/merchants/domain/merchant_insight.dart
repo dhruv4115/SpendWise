@@ -38,7 +38,8 @@ class MerchantInsight {
   /// How many transactions, refunds included.
   final int visits;
 
-  /// [totalPaise] divided by [visits], truncated. Paise do not subdivide.
+  /// What each visit cost on average: [totalPaise] over [visits], as the
+  /// server rounds it. Paise do not subdivide, so it is a whole number.
   final int avgPaise;
 
   /// The category this merchant's spend mostly landed in.

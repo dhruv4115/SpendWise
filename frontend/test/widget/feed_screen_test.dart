@@ -19,6 +19,13 @@ import '../helpers/transactions.dart';
 
 const String _path = '/transactions';
 
+/// The month under test. Every request the feed makes for it — and none of
+/// the ones the month strip makes to have its neighbours ready.
+const Map<String, String> _thisMonth = {'month': '2026-09'};
+
+List<RecordedRequest> _feedRequests(FakeApi api) =>
+    api.requestsFor('GET', _path, query: _thisMonth);
+
 /// Midday on 23 Sep 2026, so "Today" and "Yesterday" are fixed.
 final DateTime _now = DateTime(2026, 9, 23, 12);
 
@@ -211,7 +218,8 @@ void main() {
       _usePhoneScreen(tester);
       final api = FakeApi()
         ..on('GET', _path, body: _threeDays())
-        ..failOnce('GET', _path, message: 'The bank is unavailable.');
+        ..failOnce('GET', _path,
+            query: _thisMonth, message: 'The bank is unavailable.');
 
       await tester.pumpWidget(_feedApp(api));
       await tester.pumpAndSettle();
@@ -231,7 +239,7 @@ void main() {
 
       expect(find.byType(AsyncErrorView), findsNothing);
       expect(_rows, findsNWidgets(4));
-      expect(api.requestsFor('GET', _path), hasLength(2));
+      expect(_feedRequests(api), hasLength(2));
     });
 
     testWidgets('an ended session also offers Sign in again', (tester) async {
@@ -274,7 +282,7 @@ void main() {
       await tester.tap(find.text('Refresh'));
       await tester.pumpAndSettle();
 
-      expect(api.requestsFor('GET', _path), hasLength(2));
+      expect(_feedRequests(api), hasLength(2));
     });
   });
 
@@ -282,7 +290,7 @@ void main() {
     testWidgets('pull-to-refresh asks for page one again', (tester) async {
       _usePhoneScreen(tester);
       final api = FakeApi()
-        ..on('GET', _path, times: 1, body: _threeDays())
+        ..on('GET', _path, times: 1, query: _thisMonth, body: _threeDays())
         ..on(
           'GET',
           _path,
@@ -302,7 +310,7 @@ void main() {
       await tester.fling(find.text('Swiggy'), const Offset(0, 400), 1000);
       await tester.pumpAndSettle();
 
-      final requests = api.requestsFor('GET', _path);
+      final requests = _feedRequests(api);
       expect(requests, hasLength(2));
       expect(requests.last.query.containsKey('cursor'), isFalse);
       expect(find.text('Zomato'), findsOneWidget);
@@ -338,13 +346,14 @@ void main() {
           'GET',
           _path,
           times: 1,
+          query: _thisMonth,
           body: pageWire(spendsWire(50), nextCursor: 'c2'),
         )
         ..on('GET', _path, body: pageWire(spendsWire(10, startAt: 50)));
 
       await tester.pumpWidget(_feedApp(api));
       await tester.pumpAndSettle();
-      expect(api.requestsFor('GET', _path), hasLength(1),
+      expect(_feedRequests(api), hasLength(1),
           reason: 'a full first page does not fetch ahead on its own');
 
       await tester.scrollUntilVisible(
@@ -354,7 +363,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final requests = api.requestsFor('GET', _path);
+      final requests = _feedRequests(api);
       expect(requests, hasLength(2));
       expect(requests.last.query['cursor'], 'c2');
       expect(
@@ -370,13 +379,15 @@ void main() {
           'GET',
           _path,
           times: 1,
+          query: _thisMonth,
           body: pageWire(spendsWire(50), nextCursor: 'c2'),
         )
         ..on('GET', _path, body: pageWire(spendsWire(10, startAt: 50)));
 
       await tester.pumpWidget(_feedApp(api));
       await tester.pumpAndSettle();
-      api.failOnce('GET', _path, message: 'The bank is unavailable.');
+      api.failOnce('GET', _path,
+          query: _thisMonth, message: 'The bank is unavailable.');
 
       await tester.scrollUntilVisible(
         find.text('Retry'),
@@ -390,7 +401,7 @@ void main() {
       // Scrolling about near the end must not hammer a failing server.
       await tester.drag(_feedScrollable, const Offset(0, -200));
       await tester.pumpAndSettle();
-      expect(api.requestsFor('GET', _path), hasLength(2));
+      expect(_feedRequests(api), hasLength(2));
 
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
@@ -400,7 +411,7 @@ void main() {
         scrollable: _feedScrollable,
       );
 
-      expect(api.requestsFor('GET', _path), hasLength(3));
+      expect(_feedRequests(api), hasLength(3));
       expect(find.text('Retry'), findsNothing);
     });
 
@@ -409,13 +420,14 @@ void main() {
     ) async {
       _usePhoneScreen(tester);
       final api = FakeApi()
-        ..on('GET', _path, times: 1, body: _threeDays(nextCursor: 'c2'))
+        ..on('GET', _path,
+            times: 1, query: _thisMonth, body: _threeDays(nextCursor: 'c2'))
         ..on('GET', _path, body: pageWire(spendsWire(2, startAt: 90)));
 
       await tester.pumpWidget(_feedApp(api));
       await tester.pumpAndSettle();
 
-      expect(api.requestsFor('GET', _path), hasLength(2));
+      expect(_feedRequests(api), hasLength(2));
       expect(_rows, findsNWidgets(6));
     });
 
@@ -438,7 +450,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('August 2026'), findsOneWidget);
-      expect(api.requestsFor('GET', _path).last.query['month'], '2026-08');
+      expect(
+        api.requestsFor('GET', _path, query: const {'month': '2026-08'}),
+        isNotEmpty,
+      );
     });
 
     testWidgets('tapping a row opens /transactions/:id', (tester) async {
@@ -472,6 +487,7 @@ void main() {
           'GET',
           _path,
           times: 1,
+          query: _thisMonth,
           body: pageWire(
             spendsWire(
               FeedNotifier.pageSize,
@@ -495,8 +511,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(api.requestsFor('GET', _path), hasLength(pages));
-      expect(api.requestsFor('GET', _path).last.query['cursor'], 'c19');
+      expect(_feedRequests(api), hasLength(pages));
+      expect(_feedRequests(api).last.query['cursor'], 'c19');
       // A thousand rows loaded; a screenful built.
       expect(_rows.evaluate().length, lessThan(30));
       expect(

@@ -33,6 +33,14 @@ class TransactionPage {
 
   bool get isLast => nextCursor == null;
 
+  /// Back onto the wire's shape, for the offline cache. The cursor goes with
+  /// it: a saved page that could not ask for the next one would strand a
+  /// customer at row 50.
+  Map<String, Object?> toJson() => {
+        'items': [for (final txn in items) txn.toJson()],
+        'nextCursor': nextCursor,
+      };
+
   TransactionPage copyWith({
     List<Transaction>? items,
     Object? nextCursor = _unset,

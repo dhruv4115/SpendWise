@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/cache/offline_cache.dart';
 import '../../../core/errors/bank_error.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/json_read.dart';
@@ -16,7 +17,9 @@ import '../domain/transaction_page.dart';
 /// body cannot be parsed becomes an [UnknownError] rather than leaking a
 /// [FormatException] into a widget.
 class TransactionRepository {
-  TransactionRepository({required Dio dio}) : _dio = dio;
+  TransactionRepository({required Dio dio, required OfflineCache cache})
+      : _dio = dio,
+        _cache = cache;
 
   static const String transactionsPath = '/transactions';
   static const String undoPath = '$transactionsPath/undo';
@@ -25,6 +28,7 @@ class TransactionRepository {
   static const int defaultPageSize = 50;
 
   final Dio _dio;
+  final OfflineCache _cache;
 
   /// One page of [month] (`YYYY-MM`), newest first.
   ///
@@ -45,6 +49,27 @@ class TransactionRepository {
       },
       parse: TransactionPage.fromJson,
       malformedCode: 'MALFORMED_TRANSACTION_PAGE',
+    );
+  }
+
+  /// The saved first page of [month], or null when there is none.
+  ///
+  /// Only the unfiltered feed is ever saved: a filtered list is a question
+  /// about a month rather than the month itself, and caching every question
+  /// a customer asks would fill the disk with answers nobody reopens.
+  Future<Cached<TransactionPage>?> cachedFirstPage(String month) =>
+      _cache.readAs(transactionsCacheKey(month), TransactionPage.fromJson);
+
+  /// Fetches the unfiltered first page of [month] and saves it.
+  ///
+  /// A failure the network caused comes back as the saved copy marked stale
+  /// rather than as a throw. With nothing saved, the [BankError] stands.
+  Future<Cached<TransactionPage>> refreshFirstPage(String month) {
+    return _cache.refreshInto(
+      transactionsCacheKey(month),
+      fetch: () => fetchPage(month: month),
+      encode: (page) => page.toJson(),
+      decode: TransactionPage.fromJson,
     );
   }
 
@@ -103,5 +128,8 @@ class TransactionRepository {
 
 final Provider<TransactionRepository> transactionRepositoryProvider =
     Provider<TransactionRepository>(
-  (ref) => TransactionRepository(dio: ref.watch(dioProvider)),
+  (ref) => TransactionRepository(
+    dio: ref.watch(dioProvider),
+    cache: ref.watch(offlineCacheProvider),
+  ),
 );

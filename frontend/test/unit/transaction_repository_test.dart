@@ -5,16 +5,17 @@ import 'package:spendwise/features/transactions/data/transaction_repository.dart
 import 'package:spendwise/features/transactions/domain/transaction_filter.dart';
 
 import '../helpers/fake_api.dart';
+import '../helpers/fake_cache.dart';
 import '../helpers/fake_session_store.dart';
 import '../helpers/transactions.dart';
 
-TransactionRepository _repository(FakeApi api) {
+TransactionRepository _repository(FakeApi api, {FakeOfflineCache? cache}) {
   final dio = buildApiClient(
     store: FakeSessionStore(session: testSession),
     onUnauthorised: () async {},
     log: (_) {},
   )..httpClientAdapter = api;
-  return TransactionRepository(dio: dio);
+  return TransactionRepository(dio: dio, cache: cache ?? FakeOfflineCache());
 }
 
 void main() {

@@ -11,6 +11,7 @@ import '../../../core/utils/date_format.dart';
 import '../../../core/widgets/async_error_view.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../core/widgets/skeleton.dart';
+import '../../../core/widgets/stale_banner.dart';
 import '../../auth/state/session_provider.dart';
 import '../domain/transaction_filter.dart';
 import '../state/day_groups.dart';
@@ -21,6 +22,7 @@ import '../widgets/active_filters_row.dart';
 import '../widgets/day_header.dart';
 import '../widgets/transaction_tile.dart';
 import 'filters_sheet.dart';
+import 'month_switcher.dart';
 
 /// The Spending tab: a month of transactions, newest first, under a sticky
 /// header for each day — narrowed by the app-wide filter.
@@ -152,7 +154,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     );
 
     final month = ref.watch(monthProvider);
-    final isLatestMonth = month == ref.watch(latestMonthProvider);
     final stored = ref.watch(filterStateNotifier);
     final activeCount = ref.watch(activeFilterCountProvider);
     final seed = _seed;
@@ -190,26 +191,16 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(monthKeyLabel(month)),
-        actions: [
-          IconButton(
-            tooltip: 'Previous month',
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => ref.read(monthProvider.notifier).previous(),
-          ),
-          IconButton(
-            tooltip: 'Next month',
-            icon: const Icon(Icons.chevron_right),
-            // Nothing can have happened after the current month.
-            onPressed: isLatestMonth
-                ? null
-                : () => ref.read(monthProvider.notifier).next(),
-          ),
-        ],
+        title: const Text('Spending'),
         bottom: _searchBar(context, activeCount),
       ),
       body: Column(
         children: [
+          const MonthSwitcher(warmFeed: true),
+          StaleDataBanner(
+            month: month,
+            onRetry: () => ref.read(feedProvider(feedKey).notifier).refresh(),
+          ),
           ActiveFiltersRow(filter: filter),
           Expanded(
             child: _body(
